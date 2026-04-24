@@ -1,0 +1,66 @@
+name: smart_academic_scheduler
+description: University Class & Exam Routine Management System
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI Components
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
+
+  # Database
+  sqflite: ^2.3.0
+  path: ^1.9.0
+  path_provider: ^2.1.1
+
+  # State Management
+  provider: ^6.1.1
+
+  # Utilities
+  intl: ^0.18.1
+  image_picker: ^1.0.5
+
+  # PDF Generation
+  pdf: ^3.10.7
+  printing: ^5.11.1
+
+  # Navigation
+  go_router: ^13.0.1
+
+  # Splash Screen and App Icon
+  flutter_native_splash: ^2.3.8
+  flutter_launcher_icons: ^0.13.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+# Splash Screen Configuration
+flutter_native_splash:
+  color: "#1976D2"
+  image: assets/icon/splash_logo.png
+  android: true
+  ios: true
+
+  # Android 12+
+  android_12:
+    image: assets/icon/splash_logo.png
+    color: "#1976D2"
+
+# App Icon Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#1976D2"
+  min_sdk_android: 21
