@@ -10,7 +10,6 @@ class RoutineGeneratorService {
   final ConflictDetectorService _conflictDetector = ConflictDetectorService();
   final WorkloadValidatorService _workloadValidator = WorkloadValidatorService();
 
-// Generate class routine
   Future<List<Routine>> generateClassRoutine({
     required int departmentId,
     required String programType,
@@ -18,51 +17,58 @@ class RoutineGeneratorService {
     required List<Course> courses,
     required List<Teacher> teachers,
     required List<Room> rooms,
-    Function(double)? onProgress,  // ← FIXED: Added ? to make it optional
+    Function(double)? onProgress,
   }) async {
     List<Routine> routines = [];
-    int totalSteps = batches.length * courses.length;
+
+    // Filter batches to only the relevant department
+    final deptBatches = batches.where((b) => b.departmentId == departmentId).toList();
+
+    // Determine allowed days based on programType
+    final allowedDays = programType == 'HSC'
+        ? ['Saturday', 'Sunday', 'Monday', 'Tuesday']
+        : ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+
+    int totalSteps = deptBatches.fold(0, (sum, b) {
+      return sum + courses.where((c) => c.batchId == b.id).length;
+    });
     int currentStep = 0;
 
-    // For each batch
-    for (var batch in batches) {
-      // Get courses for this batch
-      var batchCourses = courses.where((c) => c.batchId == batch.id).toList();
+    for (var batch in deptBatches) {
+      // Strict batchId match — no broken fallback
+      final batchCourses = courses.where((c) => c.batchId == batch.id).toList();
+      print("Batch ${batch.id} (${batch.programType}): ${batchCourses.length} courses");
 
-      // For each course
       for (var course in batchCourses) {
         currentStep++;
-        if (onProgress != null) {  // ← Check if callback exists
+        if (onProgress != null && totalSteps > 0) {
           onProgress(currentStep / totalSteps);
         }
 
-        // Calculate required classes (1 credit = 1 class per week)
-        int requiredClasses = course.credit.round();
-
-        // Assign classes
+        final requiredClasses = course.credit.round();
         for (int i = 0; i < requiredClasses; i++) {
-          var assigned = await _assignClass(
+          final assigned = await _assignClass(
             batch: batch,
             course: course,
             teachers: teachers,
             rooms: rooms,
-            allowedDays: programType == 'HSC'
-                ? ['Saturday', 'Sunday', 'Monday', 'Tuesday']
-                : ['Friday', 'Saturday'],
+            allowedDays: allowedDays,
             existingRoutines: routines,
           );
-
           if (assigned != null) {
             routines.add(assigned);
+            print("  ✅ ${course.code} -> ${assigned.day} Slot:${assigned.slot} ${assigned.teacherName} Room:${assigned.roomNo}");
+          } else {
+            print("  ⚠️ Could not assign: ${course.code} (class ${i + 1}/$requiredClasses)");
           }
         }
       }
     }
 
+    print("=== Done: ${routines.length} classes scheduled ===");
     return routines;
   }
 
-  // Assign a single class
   Future<Routine?> _assignClass({
     required Batch batch,
     required Course course,
@@ -71,28 +77,22 @@ class RoutineGeneratorService {
     required List<String> allowedDays,
     required List<Routine> existingRoutines,
   }) async {
-    // Try each day
+    final isLab = course.type == 'Lab';
+    final requiredSlots = isLab ? 2 : 1;
+    final maxStartSlot = isLab ? 3 : 4;
+
     for (var day in allowedDays) {
-      // Try each slot
-      for (int slot = 1; slot <= 4; slot++) {
-        // For lab courses, need 2 consecutive slots
-        int requiredSlots = course.type == 'Lab' ? 2 : 1;
+      for (int slot = 1; slot <= maxStartSlot; slot++) {
 
-        if (course.type == 'Lab' && slot > 3) continue; // Lab needs slots 1-3
-
-        // Find available teacher
-        var availableTeacher = _findAvailableTeacher(
-          teachers: teachers,
+        if (!_isBatchAvailable(
+          batchId: batch.id!,
           day: day,
           slot: slot,
           requiredSlots: requiredSlots,
           existingRoutines: existingRoutines,
-        );
+        )) continue;
 
-        if (availableTeacher == null) continue;
-
-        // Find available room
-        var availableRoom = _findAvailableRoom(
+        final availableRoom = _findAvailableRoom(
           rooms: rooms,
           day: day,
           slot: slot,
@@ -100,21 +100,19 @@ class RoutineGeneratorService {
           courseType: course.type,
           existingRoutines: existingRoutines,
         );
-
         if (availableRoom == null) continue;
 
-        // Check batch availability
-        bool batchAvailable = _isBatchAvailable(
-          batchId: batch.id!,
+        final availableTeacher = _findAvailableTeacher(
+          teachers: teachers,
           day: day,
           slot: slot,
           requiredSlots: requiredSlots,
           existingRoutines: existingRoutines,
+          departmentId: batch.departmentId,
+          preferredTeacherId: course.teacherId,
         );
+        if (availableTeacher == null) continue;
 
-        if (!batchAvailable) continue;
-
-        // All checks passed - assign
         return Routine(
           type: 'class',
           departmentId: batch.departmentId,
@@ -128,15 +126,13 @@ class RoutineGeneratorService {
           roomNo: availableRoom.roomNo,
           day: day,
           slot: slot,
-          endSlot: course.type == 'Lab' ? slot + 1 : null,
+          endSlot: isLab ? slot + 1 : null,
           startTime: _getTimeForSlot(slot, 'start'),
-          endTime: _getTimeForSlot(course.type == 'Lab' ? slot + 1 : slot, 'end'),
+          endTime: _getTimeForSlot(isLab ? slot + 1 : slot, 'end'),
           status: 'scheduled',
         );
       }
     }
-
-    // Could not assign - return null (will be handled as conflict)
     return null;
   }
 
@@ -146,25 +142,41 @@ class RoutineGeneratorService {
     required int slot,
     required int requiredSlots,
     required List<Routine> existingRoutines,
+    required int departmentId,
+    int? preferredTeacherId,
   }) {
-    // Get busy teachers for this time
-    var busyTeacherIds = existingRoutines
-        .where((r) =>
-    r.day == day &&
-        ((requiredSlots == 1 && r.slot == slot) ||
-            (requiredSlots == 2 && r.slot <= slot && r.endSlot! > slot))
-    )
+    final busyTeacherIds = existingRoutines
+        .where((r) => r.day == day && _slotsOverlap(r.slot, r.endSlot, slot, slot + requiredSlots - 1))
         .map((r) => r.teacherId)
         .toSet();
 
-    return teachers.firstWhere(
-          (t) =>
-      !busyTeacherIds.contains(t.id) &&
-          t.availableDays.contains(day) &&
-          t.availableSlots.contains(slot) &&
-          (requiredSlots == 1 || t.availableSlots.contains(slot + 1)),
-      orElse: () => null as Teacher,
-    );
+    final candidates = teachers
+        .where((t) => t.departmentId == departmentId && !busyTeacherIds.contains(t.id))
+        .toList();
+
+    if (candidates.isEmpty) return null;
+
+    bool isAvailable(Teacher t) {
+      // If teacher hasn't filled availability profile, treat as always available
+      if (t.availableDays.isEmpty || t.availableSlots.isEmpty) return true;
+      if (!t.availableDays.contains(day)) return false;
+      if (!t.availableSlots.contains(slot)) return false;
+      if (requiredSlots == 2 && !t.availableSlots.contains(slot + 1)) return false;
+      return true;
+    }
+
+    // Prefer course's assigned teacher
+    if (preferredTeacherId != null) {
+      try {
+        return candidates.firstWhere((t) => t.id == preferredTeacherId && isAvailable(t));
+      } catch (_) {}
+    }
+
+    try {
+      return candidates.firstWhere(isAvailable);
+    } catch (_) {
+      return null;
+    }
   }
 
   Room? _findAvailableRoom({
@@ -175,23 +187,21 @@ class RoutineGeneratorService {
     required String courseType,
     required List<Routine> existingRoutines,
   }) {
-    // Filter rooms by type
-    var availableRooms = rooms.where((r) => r.type == courseType).toList();
+    // Case-insensitive type match
+    final typeRooms = rooms
+        .where((r) => r.type.toLowerCase() == courseType.toLowerCase())
+        .toList();
 
-    // Get busy rooms for this time
-    var busyRoomIds = existingRoutines
-        .where((r) =>
-    r.day == day &&
-        ((requiredSlots == 1 && r.slot == slot) ||
-            (requiredSlots == 2 && r.slot <= slot && r.endSlot! > slot))
-    )
+    final busyRoomIds = existingRoutines
+        .where((r) => r.day == day && _slotsOverlap(r.slot, r.endSlot, slot, slot + requiredSlots - 1))
         .map((r) => r.roomId)
         .toSet();
 
-    return availableRooms.firstWhere(
-          (r) => !busyRoomIds.contains(r.id),
-      orElse: () => null as Room,
-    );
+    try {
+      return typeRooms.firstWhere((r) => !busyRoomIds.contains(r.id));
+    } catch (_) {
+      return null;
+    }
   }
 
   bool _isBatchAvailable({
@@ -202,14 +212,20 @@ class RoutineGeneratorService {
     required List<Routine> existingRoutines,
   }) {
     return !existingRoutines.any((r) =>
-    r.batchId == batchId &&
+        r.batchId == batchId &&
         r.day == day &&
-        ((requiredSlots == 1 && r.slot == slot) ||
-            (requiredSlots == 2 && r.slot <= slot && r.endSlot! > slot)));
+        _slotsOverlap(r.slot, r.endSlot, slot, slot + requiredSlots - 1));
+  }
+
+  // Centralized slot overlap check
+  bool _slotsOverlap(int? existStart, int? existEnd, int newStart, int newEnd) {
+    final eStart = existStart ?? 0;
+    final eEnd = existEnd ?? eStart;
+    return eStart <= newEnd && eEnd >= newStart;
   }
 
   String _getTimeForSlot(int slot, String type) {
-    switch(slot) {
+    switch (slot) {
       case 1: return type == 'start' ? '9:30' : '11:00';
       case 2: return type == 'start' ? '11:10' : '12:40';
       case 3: return type == 'start' ? '14:00' : '15:30';

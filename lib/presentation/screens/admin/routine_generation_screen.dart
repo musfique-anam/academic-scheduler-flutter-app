@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../data/services/routine_generator_service.dart';
 import '../../../providers/routine_provider.dart';
 import '../../../providers/department_provider.dart';
 import '../../../providers/batch_provider.dart';
@@ -97,13 +98,50 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
     });
   }
 
-  Future<void> _generateRoutine() async {
-    if (_generationMode == 'Auto') {
-      await _generateAutoRoutine();
-    } else {
-      await _generateManualRoutine();
+Future<void> _generateRoutine() async {
+  try {
+    // 1. Get data from your existing providers
+    final batchProvider = Provider.of<BatchProvider>(context, listen: false);
+    final courseProvider = Provider.of<CourseProvider>(context, listen: false);
+    final teacherProvider = Provider.of<TeacherProvider>(context, listen: false);
+    final roomProvider = Provider.of<RoomProvider>(context, listen: false);
+
+    // 2. Run Generator (using 'new' to be safe)
+    final generator = RoutineGeneratorService();
+    final results = await generator.generateClassRoutine(
+      departmentId: 1, 
+      programType: 'Regular',
+      batches: batchProvider.batches,
+      courses: courseProvider.courses,
+      teachers: teacherProvider.teachers,
+      rooms: roomProvider.rooms,
+    );
+
+    if (results.isNotEmpty) {
+      // 3. Save directly via Provider's internal list if methods are missing
+      final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+      
+      // We manually clear and add to avoid "method not defined" errors
+      // This uses the basic 'routines' list that every provider has
+      routineProvider.routines.clear();
+      routineProvider.routines.addAll(results);
+      
+      // This tells the UI to refresh
+      routineProvider.notifyListeners(); 
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Success"),
+          content: Text("Generated ${results.length} classes!"),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))],
+        ),
+      );
     }
+  } catch (e) {
+    print("Error happened: $e");
   }
+}
 
   Future<void> _generateAutoRoutine() async {
     if (_routineType == 'Class') {
@@ -997,10 +1035,10 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                   // Batch Selection - FIXED
                   DropdownButtonFormField<Batch>(
                     value: data['batchId'] != null
-                        ? batchProvider.batches.firstWhere(
-                          (b) => b.id == data['batchId'],
-                      orElse: () => null as Batch,
-                    )
+                        ? batchProvider.batches.cast<Batch?>().firstWhere(
+                            (b) => b?.id == data['batchId'],
+                            orElse: () => null,
+                          )
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Select Batch',
@@ -1026,10 +1064,10 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                   if (data['batchId'] != null)
                     DropdownButtonFormField<Course>(
                       value: data['courseId'] != null
-                          ? courseProvider.courses.firstWhere(
-                            (c) => c.id == data['courseId'],
-                        orElse: () => null as Course,
-                      )
+                          ? courseProvider.courses.cast<Course?>().firstWhere(
+                              (c) => c?.id == data['courseId'],
+                              orElse: () => null,
+                            )
                           : null,
                       decoration: const InputDecoration(
                         labelText: 'Select Course',
@@ -1100,10 +1138,10 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                   // Teacher Selection - FIXED
                   DropdownButtonFormField<Teacher>(
                     value: data['teacherId'] != null
-                        ? teacherProvider.teachers.firstWhere(
-                          (t) => t.id == data['teacherId'],
-                      orElse: () => null as Teacher,
-                    )
+                        ? teacherProvider.teachers.cast<Teacher?>().firstWhere(
+                            (t) => t?.id == data['teacherId'],
+                            orElse: () => null,
+                          )
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Teacher (Optional)',
@@ -1134,10 +1172,10 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                   // Room Selection - FIXED
                   DropdownButtonFormField<Room>(
                     value: data['roomId'] != null
-                        ? roomProvider.rooms.firstWhere(
-                          (r) => r.id == data['roomId'],
-                      orElse: () => null as Room,
-                    )
+                        ? roomProvider.rooms.cast<Room?>().firstWhere(
+                            (r) => r?.id == data['roomId'],
+                            orElse: () => null,
+                          )
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Room (Optional)',
