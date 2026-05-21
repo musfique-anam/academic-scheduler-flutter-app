@@ -17,14 +17,16 @@ import '../../../data/models/department_model.dart';
 import '../../../data/models/room_model.dart';
 
 class ViewRoutineScreen extends StatefulWidget {
-  const ViewRoutineScreen({super.key});
+  final String initialType;
+  const ViewRoutineScreen({super.key, this.initialType = 'Class'});
 
   @override
   State<ViewRoutineScreen> createState() => _ViewRoutineScreenState();
 }
 
-class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKeepAliveClientMixin {
-  String _routineType = 'Class';
+class _ViewRoutineScreenState extends State<ViewRoutineScreen>
+    with AutomaticKeepAliveClientMixin {
+  late String _routineType;
   String _selectedView = 'Batch';
   Department? _selectedDepartment;
   Batch? _selectedBatch;
@@ -58,6 +60,7 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
   @override
   void initState() {
     super.initState();
+    _routineType = widget.initialType;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
     });
@@ -72,10 +75,13 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     }
 
     try {
-      final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
-      final deptProvider = Provider.of<DepartmentProvider>(context, listen: false);
+      final routineProvider =
+          Provider.of<RoutineProvider>(context, listen: false);
+      final deptProvider =
+          Provider.of<DepartmentProvider>(context, listen: false);
       final batchProvider = Provider.of<BatchProvider>(context, listen: false);
-      final teacherProvider = Provider.of<TeacherProvider>(context, listen: false);
+      final teacherProvider =
+          Provider.of<TeacherProvider>(context, listen: false);
       final roomProvider = Provider.of<RoomProvider>(context, listen: false);
 
       await routineProvider.loadRoutinesFromDatabase();
@@ -84,14 +90,17 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
       await teacherProvider.loadTeachers();
       await roomProvider.loadRooms();
 
-      print('✅ Data loaded successfully. Class routines: ${routineProvider.routines.where((r) => r.type.toLowerCase() == 'class').length}, Exam routines: ${routineProvider.routines.where((r) => r.type.toLowerCase() == 'exam').length}');
+      final classCount = routineProvider.routines
+          .where((r) => (r.type).toLowerCase() == 'class')
+          .length;
+      final examCount = routineProvider.routines
+          .where((r) => (r.type).toLowerCase() == 'exam')
+          .length;
+      debugPrint(
+          '✅ Loaded — Class: $classCount, Exam: $examCount (total ${routineProvider.routines.length})');
     } catch (e) {
-      print('❌ Error loading data: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
-      }
+      debugPrint('❌ Error loading data: $e');
+      if (mounted) setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -113,7 +122,7 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
 
   List<Routine> _getFilteredRoutines(RoutineProvider provider) {
     final routines = provider.routines.where((r) =>
-    r.type.toLowerCase() == _routineType.toLowerCase()
+      (r.type).toLowerCase() == _routineType.toLowerCase()
     ).toList();
 
     if (routines.isEmpty) return [];
@@ -127,26 +136,46 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     switch (_selectedView) {
       case 'Department':
         if (_selectedDepartment != null) {
-          filtered = filtered.where((r) => r.departmentId == _selectedDepartment!.id.toString()).toList();
+          filtered = filtered
+              .where((r) =>
+                  r.departmentId == _selectedDepartment!.id.toString())
+              .toList();
         }
         break;
       case 'Batch':
         if (_selectedBatch != null) {
-          filtered = filtered.where((r) => r.batchId == _selectedBatch!.id.toString()).toList();
+          filtered = filtered
+              .where((r) => r.batchId == _selectedBatch!.id.toString())
+              .toList();
         }
         break;
       case 'Teacher':
         if (_selectedTeacher != null) {
-          filtered = filtered.where((r) => r.teacherId == _selectedTeacher!.id.toString()).toList();
+          filtered = filtered
+              .where((r) => r.teacherId == _selectedTeacher!.id.toString())
+              .toList();
         }
         break;
     }
 
-    filtered.sort((a, b) {
-      final dayCompare = _getDayIndex(a.day).compareTo(_getDayIndex(b.day));
-      if (dayCompare != 0) return dayCompare;
-      return a.slot.compareTo(b.slot);
-    });
+    if (_routineType == 'Exam') {
+      // Sort by date → slot → batch
+      filtered.sort((a, b) {
+        final dateCmp = (a.date ?? DateTime(2100))
+            .compareTo(b.date ?? DateTime(2100));
+        if (dateCmp != 0) return dateCmp;
+        final slotCmp = a.slot.compareTo(b.slot);
+        if (slotCmp != 0) return slotCmp;
+        return (int.tryParse(a.batchId) ?? 0)
+            .compareTo(int.tryParse(b.batchId) ?? 0);
+      });
+    } else {
+      filtered.sort((a, b) {
+        final dayCompare = _getDayIndex(a.day).compareTo(_getDayIndex(b.day));
+        if (dayCompare != 0) return dayCompare;
+        return a.slot.compareTo(b.slot);
+      });
+    }
 
     return filtered;
   }
@@ -160,15 +189,22 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     return _routineType == 'Exam' ? _examTimeSlots : _timeSlots;
   }
 
+  String _weekdayName(int weekday) {
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return names[(weekday - 1).clamp(0, 6)];
+  }
+
   String _getTeacherShortName(String? teacherName, List<Teacher> teachers) {
     if (teacherName == null || teacherName.isEmpty) return 'TBA';
     try {
       final teacher = teachers.firstWhere(
-            (t) => t.name == teacherName,
+        (t) => t.name == teacherName,
         orElse: () => Teacher(
           id: 0,
           name: teacherName,
-          shortName: teacherName.length > 3 ? teacherName.substring(0, 3).toUpperCase() : teacherName,
+          shortName: teacherName.length > 3
+              ? teacherName.substring(0, 3).toUpperCase()
+              : teacherName,
           username: '',
           password: '',
           phone: '',
@@ -178,17 +214,22 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
       );
       return teacher.shortName;
     } catch (e) {
-      return teacherName.length > 3 ? teacherName.substring(0, 3).toUpperCase() : teacherName;
+      return teacherName.length > 3
+          ? teacherName.substring(0, 3).toUpperCase()
+          : teacherName;
     }
   }
 
   void _showDeleteDialog() {
-    final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+    final routineProvider =
+        Provider.of<RoutineProvider>(context, listen: false);
     final filteredRoutines = _getFilteredRoutines(routineProvider);
 
     if (filteredRoutines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No routines to delete'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('No routines to delete'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
@@ -205,18 +246,20 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
             if (_selectedView == 'Batch' && _selectedBatch != null)
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: Text('Delete ${_selectedBatch!.batchNo} ${_routineType} Routine'),
+                title: Text(
+                    'Delete ${_selectedBatch!.batchNo} $_routineType Routine'),
                 onTap: () => _confirmDelete('batch'),
               ),
             if (_selectedView == 'Department' && _selectedDepartment != null)
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: Text('Delete ${_selectedDepartment!.name} ${_routineType} Routine'),
+                title: Text(
+                    'Delete ${_selectedDepartment!.name} $_routineType Routine'),
                 onTap: () => _confirmDelete('department'),
               ),
             ListTile(
               leading: const Icon(Icons.delete_sweep, color: Colors.red),
-              title: Text('Delete All ${_routineType} Routines'),
+              title: Text('Delete All $_routineType Routines'),
               onTap: () => _confirmDelete('all'),
             ),
           ],
@@ -232,13 +275,15 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
   }
 
   Future<void> _confirmDelete(String scope) async {
-    final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+    final routineProvider =
+        Provider.of<RoutineProvider>(context, listen: false);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Delete'),
-        content: Text('Are you sure you want to delete this ${_routineType.toLowerCase()} routine? This action cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete this ${_routineType.toLowerCase()} routine? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -254,52 +299,61 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
 
               try {
                 if (scope == 'batch' && _selectedBatch != null) {
-                  final routinesToDelete = routineProvider.routines.where((r) =>
-                  r.batchId == _selectedBatch!.id.toString() &&
-                      r.type.toLowerCase() == _routineType.toLowerCase()
-                  ).toList();
-
-                  for (var routine in routinesToDelete) {
-                    if (routine.id != null) {
-                      await routineProvider.deleteRoutine(routine.id!);
+                  final toDelete = routineProvider.routines.where((r) =>
+                      r.batchId == _selectedBatch!.id.toString() &&
+                      (r.type).toLowerCase() ==
+                          _routineType.toLowerCase()).toList();
+                  for (var r in toDelete) {
+                    if (r.id != null) {
+                      await routineProvider.deleteRoutine(r.id!);
                     }
                   }
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${_selectedBatch!.batchNo} ${_routineType} routine deleted'), backgroundColor: Colors.green),
+                      SnackBar(
+                          content: Text(
+                              '${_selectedBatch!.batchNo} $_routineType routine deleted'),
+                          backgroundColor: Colors.green),
                     );
                   }
                   setState(() => _selectedBatch = null);
-                } else if (scope == 'department' && _selectedDepartment != null) {
-                  final routinesToDelete = routineProvider.routines.where((r) =>
-                  r.departmentId == _selectedDepartment!.id.toString() &&
-                      r.type.toLowerCase() == _routineType.toLowerCase()
-                  ).toList();
-
-                  for (var routine in routinesToDelete) {
-                    if (routine.id != null) {
-                      await routineProvider.deleteRoutine(routine.id!);
+                } else if (scope == 'department' &&
+                    _selectedDepartment != null) {
+                  final toDelete = routineProvider.routines.where((r) =>
+                      r.departmentId == _selectedDepartment!.id.toString() &&
+                      (r.type).toLowerCase() ==
+                          _routineType.toLowerCase()).toList();
+                  for (var r in toDelete) {
+                    if (r.id != null) {
+                      await routineProvider.deleteRoutine(r.id!);
                     }
                   }
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${_selectedDepartment!.name} ${_routineType} routine deleted'), backgroundColor: Colors.green),
+                      SnackBar(
+                          content: Text(
+                              '${_selectedDepartment!.name} $_routineType routine deleted'),
+                          backgroundColor: Colors.green),
                     );
                   }
                   setState(() => _selectedDepartment = null);
                 } else if (scope == 'all') {
-                  final routinesToDelete = routineProvider.routines.where((r) =>
-                  r.type.toLowerCase() == _routineType.toLowerCase()
-                  ).toList();
-
-                  for (var routine in routinesToDelete) {
-                    if (routine.id != null) {
-                      await routineProvider.deleteRoutine(routine.id!);
+                  final toDelete = routineProvider.routines
+                      .where((r) =>
+                          (r.type).toLowerCase() ==
+                          _routineType.toLowerCase())
+                      .toList();
+                  for (var r in toDelete) {
+                    if (r.id != null) {
+                      await routineProvider.deleteRoutine(r.id!);
                     }
                   }
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('All $_routineType routines deleted'), backgroundColor: Colors.green),
+                      SnackBar(
+                          content:
+                              Text('All $_routineType routines deleted'),
+                          backgroundColor: Colors.green),
                     );
                   }
                 }
@@ -308,16 +362,17 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error deleting: $e'), backgroundColor: Colors.red),
+                    SnackBar(
+                        content: Text('Error deleting: $e'),
+                        backgroundColor: Colors.red),
                   );
                 }
               } finally {
-                if (mounted) {
-                  setState(() => _isDeleting = false);
-                }
+                if (mounted) setState(() => _isDeleting = false);
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -327,115 +382,243 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
   Future<void> _generatePDF() async {
     final provider = Provider.of<RoutineProvider>(context, listen: false);
     final routines = _getFilteredRoutines(provider);
-    final teacherProvider = Provider.of<TeacherProvider>(context, listen: false);
+    final teacherProvider =
+        Provider.of<TeacherProvider>(context, listen: false);
 
     if (routines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No routines to export'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('No routines to export'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
 
     try {
       final pdf = pw.Document();
-      final currentTimeSlots = _getCurrentTimeSlots();
 
-      final Map<String, Map<String, List<Routine>>> dayBatchMap = {};
-      for (var r in routines) {
-        dayBatchMap.putIfAbsent(r.day, () => {});
-        dayBatchMap[r.day]!.putIfAbsent(r.batchId, () => []);
-        dayBatchMap[r.day]![r.batchId]!.add(r);
-      }
+      if (_routineType == 'Exam') {
+        // 🔥 EXAM PDF — Date | Day | Time | Batch | Course | Room
+        final sorted = List<Routine>.from(routines)
+          ..sort((a, b) {
+            final dCmp = (a.date ?? DateTime(2100))
+                .compareTo(b.date ?? DateTime(2100));
+            if (dCmp != 0) return dCmp;
+            final sCmp = a.slot.compareTo(b.slot);
+            if (sCmp != 0) return sCmp;
+            return (int.tryParse(a.batchId) ?? 0)
+                .compareTo(int.tryParse(b.batchId) ?? 0);
+          });
 
-      const dayOrder = ['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'];
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4.landscape,
-          margin: pw.EdgeInsets.all(20),
-          build: (pw.Context context) {
-            final children = <pw.Widget>[
-              pw.Center(
-                child: pw.Column(
-                  children: [
+        pdf.addPage(
+          pw.MultiPage(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.all(24),
+            build: (pw.Context context) {
+              return [
+                pw.Center(
+                  child: pw.Column(children: [
                     pw.Text('Pundra University of Science & Technology',
-                        style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 5),
-                    pw.Text('Department of Computer Science & Engineering',
-                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 5),
-                    pw.Text('${_routineType.toUpperCase()} ROUTINE',
-                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 15),
-                  ],
+                        style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                        'Department of Computer Science & Engineering',
+                        style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('EXAM ROUTINE',
+                        style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 16),
+                  ]),
                 ),
-              ),
-            ];
-
-            // Add filters if selected
-            if (_selectedDepartment != null) {
-              children.add(pw.Center(
-                child: pw.Text('Department: ${_selectedDepartment!.name}',
-                    style: pw.TextStyle(fontSize: 11)),
-              ));
-              children.add(pw.SizedBox(height: 5));
-            }
-            if (_selectedBatch != null) {
-              children.add(pw.Center(
-                child: pw.Text('Batch: ${_selectedBatch!.batchNo}',
-                    style: pw.TextStyle(fontSize: 11)),
-              ));
-              children.add(pw.SizedBox(height: 5));
-            }
-            if (_selectedTeacher != null) {
-              children.add(pw.Center(
-                child: pw.Text('Teacher: ${_selectedTeacher!.name}',
-                    style: pw.TextStyle(fontSize: 11)),
-              ));
-              children.add(pw.SizedBox(height: 5));
-            }
-
-            children.add(pw.SizedBox(height: 20));
-
-            // Add day tables
-            for (var day in dayOrder) {
-              if (dayBatchMap.containsKey(day)) {
-                children.add(pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Container(
-                      padding: pw.EdgeInsets.all(8),
-                      color: PdfColors.blue100,
-                      child: pw.Text(day.toUpperCase(),
-                          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    ),
-                    pw.SizedBox(height: 10),
-                    _buildPdfRoutineTable(dayBatchMap[day]!, currentTimeSlots, teacherProvider.teachers),
-                    pw.SizedBox(height: 20),
+                if (_selectedDepartment != null) ...[
+                  pw.Center(
+                      child: pw.Text(
+                          'Department: ${_selectedDepartment!.name}',
+                          style: const pw.TextStyle(fontSize: 11))),
+                  pw.SizedBox(height: 4),
+                ],
+                if (_selectedBatch != null) ...[
+                  pw.Center(
+                      child: pw.Text('Batch: ${_selectedBatch!.batchNo}',
+                          style: const pw.TextStyle(fontSize: 11))),
+                  pw.SizedBox(height: 4),
+                ],
+                pw.SizedBox(height: 12),
+                pw.Table.fromTextArray(
+                  headers: [
+                    'Date',
+                    'Day',
+                    'Time',
+                    'Batch',
+                    'Course',
+                    'Room'
                   ],
-                ));
-              }
-            }
+                  cellAlignment: pw.Alignment.centerLeft,
+                  headerStyle: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold, fontSize: 10),
+                  cellStyle: const pw.TextStyle(fontSize: 9),
+                  headerDecoration:
+                      const pw.BoxDecoration(color: PdfColors.grey300),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(2),
+                    1: const pw.FlexColumnWidth(1.2),
+                    2: const pw.FlexColumnWidth(2),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(4),
+                    5: const pw.FlexColumnWidth(1.5),
+                  },
+                  data: sorted.map((r) {
+                    final d = r.date;
+                    final dateStr = d != null
+                        ? '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'
+                        : '-';
+                    final dayName =
+                        d != null ? _weekdayName(d.weekday) : '';
+                    final time =
+                        '${r.startTime ?? "-"} - ${r.endTime ?? "-"}';
+                    return [
+                      dateStr,
+                      dayName,
+                      time,
+                      'Batch ${r.batchId}',
+                      '${r.courseCode}\n${r.courseTitle}',
+                      r.roomNo ?? 'TBA',
+                    ];
+                  }).toList(),
+                ),
+                pw.SizedBox(height: 16),
+                pw.Center(
+                  child: pw.Text(
+                      'Generated by Smart Academic Scheduler',
+                      style: const pw.TextStyle(
+                          fontSize: 8, color: PdfColors.grey500)),
+                ),
+              ];
+            },
+          ),
+        );
+      } else {
+        // 🔥 CLASS PDF — original day-grouped grid
+        final currentTimeSlots = _getCurrentTimeSlots();
+        final Map<String, Map<String, List<Routine>>> dayBatchMap = {};
+        for (var r in routines) {
+          dayBatchMap.putIfAbsent(r.day, () => {});
+          dayBatchMap[r.day]!.putIfAbsent(r.batchId, () => []);
+          dayBatchMap[r.day]![r.batchId]!.add(r);
+        }
 
-            children.add(pw.SizedBox(height: 20));
-            children.add(pw.Center(
-              child: pw.Column(
-                children: [
+        const dayOrder = [
+          'Friday',
+          'Saturday',
+          'Sunday',
+          'Monday',
+          'Tuesday'
+        ];
+
+        pdf.addPage(
+          pw.MultiPage(
+            pageFormat: PdfPageFormat.a4.landscape,
+            margin: const pw.EdgeInsets.all(20),
+            build: (pw.Context context) {
+              final children = <pw.Widget>[
+                pw.Center(
+                  child: pw.Column(children: [
+                    pw.Text('Pundra University of Science & Technology',
+                        style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 5),
+                    pw.Text(
+                        'Department of Computer Science & Engineering',
+                        style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 5),
+                    pw.Text('CLASS ROUTINE',
+                        style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 15),
+                  ]),
+                ),
+              ];
+
+              if (_selectedDepartment != null) {
+                children.add(pw.Center(
+                  child: pw.Text(
+                      'Department: ${_selectedDepartment!.name}',
+                      style: const pw.TextStyle(fontSize: 11)),
+                ));
+                children.add(pw.SizedBox(height: 5));
+              }
+              if (_selectedBatch != null) {
+                children.add(pw.Center(
+                  child: pw.Text('Batch: ${_selectedBatch!.batchNo}',
+                      style: const pw.TextStyle(fontSize: 11)),
+                ));
+                children.add(pw.SizedBox(height: 5));
+              }
+              if (_selectedTeacher != null) {
+                children.add(pw.Center(
+                  child: pw.Text('Teacher: ${_selectedTeacher!.name}',
+                      style: const pw.TextStyle(fontSize: 11)),
+                ));
+                children.add(pw.SizedBox(height: 5));
+              }
+
+              children.add(pw.SizedBox(height: 20));
+
+              for (var day in dayOrder) {
+                if (dayBatchMap.containsKey(day)) {
+                  children.add(pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(8),
+                        color: PdfColors.blue100,
+                        child: pw.Text(day.toUpperCase(),
+                            style: pw.TextStyle(
+                                fontSize: 14,
+                                fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.SizedBox(height: 10),
+                      _buildPdfRoutineTable(
+                          dayBatchMap[day]!,
+                          currentTimeSlots,
+                          teacherProvider.teachers),
+                      pw.SizedBox(height: 20),
+                    ],
+                  ));
+                }
+              }
+
+              children.add(pw.SizedBox(height: 20));
+              children.add(pw.Center(
+                child: pw.Column(children: [
                   pw.Text('NB – New Building',
-                      style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+                      style: const pw.TextStyle(
+                          fontSize: 8, color: PdfColors.grey500)),
                   pw.Text('OD – Other Departments',
-                      style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+                      style: const pw.TextStyle(
+                          fontSize: 8, color: PdfColors.grey500)),
                   pw.SizedBox(height: 5),
                   pw.Text('Generated by Smart Academic Scheduler',
-                      style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
-                ],
-              ),
-            ));
+                      style: const pw.TextStyle(
+                          fontSize: 8, color: PdfColors.grey500)),
+                ]),
+              ));
 
-            return children;
-          },
-        ),
-      );
+              return children;
+            },
+          ),
+        );
+      }
 
       await Printing.sharePdf(
         bytes: await pdf.save(),
@@ -444,38 +627,43 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF generated successfully'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('PDF generated successfully'),
+              backgroundColor: Colors.green),
         );
       }
     } catch (e) {
-      print('❌ PDF Error: $e');
+      debugPrint('❌ PDF Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating PDF: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error generating PDF: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  pw.Widget _buildPdfRoutineTable(Map<String, List<Routine>> batchRoutines, List<Map<String, dynamic>> timeSlots, List<Teacher> teachers) {
-    final batches = batchRoutines.keys.toList()..sort((a, b) {
-      final aNum = int.tryParse(a) ?? 0;
-      final bNum = int.tryParse(b) ?? 0;
-      return bNum.compareTo(aNum);
-    });
+  pw.Widget _buildPdfRoutineTable(
+      Map<String, List<Routine>> batchRoutines,
+      List<Map<String, dynamic>> timeSlots,
+      List<Teacher> teachers) {
+    final batches = batchRoutines.keys.toList()
+      ..sort((a, b) {
+        final aNum = int.tryParse(a) ?? 0;
+        final bNum = int.tryParse(b) ?? 0;
+        return bNum.compareTo(aNum);
+      });
 
     final headers = ['Batch', ...timeSlots.map((slot) => slot['time'] as String)];
-
     final tableData = <List<String>>[];
 
     for (var batch in batches) {
-      final row = <String>[batch];
+      final row = [batch];
       final slotMap = <int, Routine>{};
-
       for (var routine in batchRoutines[batch]!) {
         slotMap[routine.slot] = routine;
       }
-
       for (var slot in timeSlots) {
         final slotNum = slot['slot'] as int;
         if (slotMap.containsKey(slotNum)) {
@@ -490,41 +678,47 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     }
 
     final widgetTable = <List<pw.Widget>>[];
-
-    widgetTable.add(headers.map((header) =>
-        pw.Container(
-          padding: pw.EdgeInsets.all(8),
-          color: PdfColors.grey300,
-          child: pw.Text(header, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-        )
-    ).toList());
+    widgetTable.add(headers
+        .map((header) => pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              color: PdfColors.grey300,
+              child: pw.Text(header,
+                  style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold, fontSize: 10)),
+            ))
+        .toList());
 
     for (var row in tableData) {
-      widgetTable.add(row.map((cell) =>
-          pw.Container(
-            padding: pw.EdgeInsets.all(6),
-            child: pw.Text(cell, style: pw.TextStyle(fontSize: 9)),
-          )
-      ).toList());
+      widgetTable.add(row
+          .map((cell) => pw.Container(
+                padding: const pw.EdgeInsets.all(6),
+                child: pw.Text(cell,
+                    style: const pw.TextStyle(fontSize: 9)),
+              ))
+          .toList());
     }
 
     return pw.Table(
       border: pw.TableBorder.all(),
-      children: widgetTable.map((row) => pw.TableRow(children: row)).toList(),
+      children: widgetTable
+          .map((row) => pw.TableRow(children: row))
+          .toList(),
     );
   }
 
   void _showEditDialog(Routine routine) {
-    final teacherProvider = Provider.of<TeacherProvider>(context, listen: false);
+    final teacherProvider =
+        Provider.of<TeacherProvider>(context, listen: false);
     final roomProvider = Provider.of<RoomProvider>(context, listen: false);
-    final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+    final routineProvider =
+        Provider.of<RoutineProvider>(context, listen: false);
 
     int selectedSlot = routine.slot;
     String selectedDay = routine.day;
     Teacher? selectedTeacher;
     try {
       selectedTeacher = teacherProvider.teachers.firstWhere(
-            (t) => t.id.toString() == routine.teacherId,
+        (t) => t.id.toString() == routine.teacherId,
       );
     } catch (e) {
       selectedTeacher = null;
@@ -533,7 +727,7 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     Room? selectedRoom;
     try {
       selectedRoom = roomProvider.rooms.firstWhere(
-            (r) => r.id.toString() == routine.roomId,
+        (r) => r.id.toString() == routine.roomId,
       );
     } catch (e) {
       selectedRoom = null;
@@ -546,13 +740,13 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            title: Row(
-              children: [
-                const Icon(Icons.edit, color: Color(0xFF1976D2)),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Edit ${routine.courseCode}', style: const TextStyle(fontSize: 18))),
-              ],
-            ),
+            title: Row(children: [
+              const Icon(Icons.edit, color: Color(0xFF1976D2)),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text('Edit ${routine.courseCode}',
+                      style: const TextStyle(fontSize: 18))),
+            ]),
             content: SizedBox(
               width: MediaQuery.of(context).size.width * 0.9,
               child: SingleChildScrollView(
@@ -561,69 +755,103 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
                   children: [
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
-                      child: Column(
-                        children: [
-                          Text(routine.courseCode, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          Text(routine.courseTitle, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                        ],
-                      ),
+                      decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Column(children: [
+                        Text(routine.courseCode,
+                            style: const TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(routine.courseTitle,
+                            style: TextStyle(
+                                fontSize: 14, color: Colors.grey[600])),
+                      ]),
                     ),
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       value: selectedDay,
-                      decoration: const InputDecoration(labelText: 'Select Day', border: OutlineInputBorder()),
-                      items: _days.where((d) => d != 'All').map((day) =>
-                          DropdownMenuItem(value: day, child: Text(day))
-                      ).toList(),
-                      onChanged: (value) => setState(() => selectedDay = value!),
+                      decoration: const InputDecoration(
+                          labelText: 'Select Day',
+                          border: OutlineInputBorder()),
+                      items: _days
+                          .where((d) => d != 'All')
+                          .map((day) => DropdownMenuItem(
+                              value: day, child: Text(day)))
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => selectedDay = value!),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(
                       value: selectedSlot,
-                      decoration: const InputDecoration(labelText: 'Select Time Slot', border: OutlineInputBorder()),
-                      items: currentTimeSlots.map((slot) =>
-                          DropdownMenuItem(value: slot['slot'] as int, child: Text('Slot ${slot['slot']}: ${slot['time']}'))
-                      ).toList(),
-                      onChanged: (value) => setState(() => selectedSlot = value!),
+                      decoration: const InputDecoration(
+                          labelText: 'Select Time Slot',
+                          border: OutlineInputBorder()),
+                      items: currentTimeSlots
+                          .map((slot) => DropdownMenuItem<int>(
+                              value: slot['slot'] as int,
+                              child: Text(
+                                  'Slot ${slot['slot']}: ${slot['time']}')))
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => selectedSlot = value!),
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<Teacher>(
+                    DropdownButtonFormField<Teacher?>(
                       value: selectedTeacher,
-                      decoration: const InputDecoration(labelText: 'Select Teacher', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'Select Teacher',
+                          border: OutlineInputBorder()),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('None')),
+                        const DropdownMenuItem<Teacher?>(
+                            value: null, child: Text('None')),
                         ...teacherProvider.teachers.map((teacher) =>
-                            DropdownMenuItem(value: teacher, child: Text('${teacher.name} (${teacher.shortName})'))
-                        ),
+                            DropdownMenuItem<Teacher?>(
+                                value: teacher,
+                                child: Text(
+                                    '${teacher.name} (${teacher.shortName})'))),
                       ],
-                      onChanged: (value) => setState(() => selectedTeacher = value),
+                      onChanged: (value) =>
+                          setState(() => selectedTeacher = value),
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<Room>(
+                    DropdownButtonFormField<Room?>(
                       value: selectedRoom,
-                      decoration: const InputDecoration(labelText: 'Select Room', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'Select Room',
+                          border: OutlineInputBorder()),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('None')),
+                        const DropdownMenuItem<Room?>(
+                            value: null, child: Text('None')),
                         ...roomProvider.rooms.map((room) =>
-                            DropdownMenuItem(value: room, child: Text('${room.roomNo} (F${room.floor})'))
-                        ),
+                            DropdownMenuItem<Room?>(
+                                value: room,
+                                child: Text(
+                                    '${room.roomNo} (F${room.floor})'))),
                       ],
-                      onChanged: (value) => setState(() => selectedRoom = value),
+                      onChanged: (value) =>
+                          setState(() => selectedRoom = value),
                     ),
                   ],
                 ),
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel')),
               ElevatedButton(
                 onPressed: () async {
                   final Map<String, dynamic> changes = {};
-                  if (selectedDay != routine.day) changes['day'] = selectedDay;
-                  if (selectedSlot != routine.slot) changes['slot'] = selectedSlot;
-                  if (selectedTeacher?.id.toString() != routine.teacherId) {
+                  if (selectedDay != routine.day) {
+                    changes['day'] = selectedDay;
+                  }
+                  if (selectedSlot != routine.slot) {
+                    changes['slot'] = selectedSlot;
+                  }
+                  if (selectedTeacher?.id.toString() !=
+                      routine.teacherId) {
                     changes['teacherId'] = selectedTeacher?.id.toString();
                     changes['teacherName'] = selectedTeacher?.name;
                   }
@@ -637,13 +865,16 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
                     await _refreshData();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Routine updated'), backgroundColor: Colors.green),
+                        const SnackBar(
+                            content: Text('Routine updated'),
+                            backgroundColor: Colors.green),
                       );
                     }
                   }
                   if (mounted) Navigator.pop(context);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1976D2)),
                 child: const Text('Save Changes'),
               ),
             ],
@@ -671,7 +902,9 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
         actions: [
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(20)),
             child: Row(children: [
               _buildTypeChip('Class', _routineType == 'Class'),
               _buildTypeChip('Exam', _routineType == 'Exam'),
@@ -688,7 +921,11 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           ),
           IconButton(
             icon: _isRefreshing
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.refresh),
             onPressed: _isRefreshing ? null : _refreshData,
           ),
@@ -696,18 +933,19 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
       ),
       body: RefreshIndicator(
         onRefresh: _refreshData,
-        child: _buildBody(routineProvider, deptProvider, batchProvider, teacherProvider, filteredRoutines),
+        child: _buildBody(routineProvider, deptProvider, batchProvider,
+            teacherProvider, filteredRoutines),
       ),
     );
   }
 
   Widget _buildBody(
-      RoutineProvider routineProvider,
-      DepartmentProvider deptProvider,
-      BatchProvider batchProvider,
-      TeacherProvider teacherProvider,
-      List<Routine> filteredRoutines,
-      ) {
+    RoutineProvider routineProvider,
+    DepartmentProvider deptProvider,
+    BatchProvider batchProvider,
+    TeacherProvider teacherProvider,
+    List<Routine> filteredRoutines,
+  ) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -719,15 +957,15 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           children: [
             Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
             const SizedBox(height: 16),
-            Text('Error loading data', style: TextStyle(fontSize: 18, color: Colors.red[700])),
+            Text('Error loading data',
+                style: TextStyle(fontSize: 18, color: Colors.red[700])),
             const SizedBox(height: 8),
             Text(_errorMessage!, style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _refreshData,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
+                onPressed: _refreshData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry')),
           ],
         ),
       );
@@ -740,12 +978,15 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           children: [
             Icon(Icons.calendar_view_day, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            Text('No routine generated yet', style: TextStyle(fontSize: 18)),
+            const Text('No routine generated yet',
+                style: TextStyle(fontSize: 18)),
             const SizedBox(height: 8),
-            Text('Generate a routine first', style: TextStyle(color: Colors.grey[500])),
+            Text('Generate a routine first',
+                style: TextStyle(color: Colors.grey[500])),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => Navigator.pushReplacementNamed(context, '/admin/dashboard'),
+              onPressed: () => Navigator.pushReplacementNamed(
+                  context, '/admin/dashboard'),
               child: const Text('Go to Dashboard'),
             ),
           ],
@@ -764,25 +1005,31 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
         Expanded(
           child: filteredRoutines.isEmpty
               ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.info_outline, size: 64, color: Colors.grey[400]),
-                const SizedBox(height: 16),
-                Text('No $_routineType routines found', style: TextStyle(fontSize: 16)),
-                const SizedBox(height: 8),
-                if (_routineType == 'Exam')
-                  const Text('Generate exam routine first from Routine Generation screen', style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-          )
-              : _buildRoutineTableWidget(filteredRoutines, teacherProvider.teachers),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text('No $_routineType routines found',
+                          style: const TextStyle(fontSize: 16)),
+                      const SizedBox(height: 8),
+                      if (_routineType == 'Exam')
+                        const Text(
+                            'Generate exam routine first from Routine Generation screen',
+                            style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                )
+              : _buildRoutineTableWidget(
+                  filteredRoutines, teacherProvider.teachers),
         ),
       ],
     );
   }
 
-  Widget _buildFilterSection(DepartmentProvider deptProvider, BatchProvider batchProvider, TeacherProvider teacherProvider) {
+  Widget _buildFilterSection(DepartmentProvider deptProvider,
+      BatchProvider batchProvider, TeacherProvider teacherProvider) {
     return Container(
       padding: const EdgeInsets.all(12),
       color: Colors.grey[100],
@@ -797,12 +1044,14 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
                   value: _selectedView,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
                     isDense: true,
                   ),
                   items: const [
                     DropdownMenuItem(value: 'Batch', child: Text('Batch')),
-                    DropdownMenuItem(value: 'Department', child: Text('Department')),
+                    DropdownMenuItem(
+                        value: 'Department', child: Text('Department')),
                     DropdownMenuItem(value: 'Teacher', child: Text('Teacher')),
                   ],
                   onChanged: (value) {
@@ -822,61 +1071,68 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
             DropdownButtonFormField<Department>(
               value: _selectedDepartment,
               hint: const Text('Select Department'),
+              isExpanded: true,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 isDense: true,
               ),
-              items: [
-                ...deptProvider.departments.map((d) =>
-                    DropdownMenuItem(value: d, child: Text('${d.name} (${d.code})'))
-                ),
-              ],
+              items: deptProvider.departments
+                  .map((d) => DropdownMenuItem(
+                      value: d, child: Text('${d.name} (${d.code})')))
+                  .toList(),
               onChanged: (d) => setState(() => _selectedDepartment = d),
             ),
           if (_selectedView == 'Batch')
             DropdownButtonFormField<Batch>(
               value: _selectedBatch,
               hint: const Text('Select Batch'),
+              isExpanded: true,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 isDense: true,
               ),
-              items: [
-                ...batchProvider.batches.map((b) =>
-                    DropdownMenuItem(value: b, child: Text('Batch ${b.batchNo}'))
-                ),
-              ],
+              items: batchProvider.batches
+                  .map((b) => DropdownMenuItem(
+                      value: b, child: Text('Batch ${b.batchNo}')))
+                  .toList(),
               onChanged: (b) => setState(() => _selectedBatch = b),
             ),
           if (_selectedView == 'Teacher')
             DropdownButtonFormField<Teacher>(
               value: _selectedTeacher,
               hint: const Text('Select Teacher'),
+              isExpanded: true,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 isDense: true,
               ),
-              items: [
-                ...teacherProvider.teachers.map((t) =>
-                    DropdownMenuItem(value: t, child: Text(t.name))
-                ),
-              ],
+              items: teacherProvider.teachers
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t.name)))
+                  .toList(),
               onChanged: (t) => setState(() => _selectedTeacher = t),
             ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _selectedDay,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              isDense: true,
+          if (_routineType == 'Class')
+            DropdownButtonFormField<String>(
+              value: _selectedDay,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                isDense: true,
+              ),
+              items: _days
+                  .map((d) =>
+                      DropdownMenuItem(value: d, child: Text(d)))
+                  .toList(),
+              onChanged: (d) => setState(() => _selectedDay = d!),
             ),
-            items: _days.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-            onChanged: (d) => setState(() => _selectedDay = d!),
-          ),
         ],
       ),
     );
@@ -888,29 +1144,51 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatCard('Total', '${routines.length}', Icons.class_, Colors.blue),
-          _buildStatCard('Batches', '${routines.map((r) => r.batchId).toSet().length}', Icons.group, Colors.green),
-          _buildStatCard('Teachers', '${routines.map((r) => r.teacherId).where((id) => id != null && id.isNotEmpty).toSet().length}', Icons.person, Colors.orange),
+          _buildStatCard('Total', '${routines.length}', Icons.class_,
+              Colors.blue),
+          _buildStatCard(
+              'Batches',
+              '${routines.map((r) => r.batchId).toSet().length}',
+              Icons.group,
+              Colors.green),
+          if (_routineType == 'Class')
+            _buildStatCard(
+                'Teachers',
+                '${routines.map((r) => r.teacherId).where((id) => id != null && id.isNotEmpty).toSet().length}',
+                Icons.person,
+                Colors.orange),
+          if (_routineType == 'Exam')
+            _buildStatCard(
+                'Days',
+                '${routines.map((r) => r.date?.toString().split(' ').first).toSet().length}',
+                Icons.calendar_today,
+                Colors.orange),
         ],
       ),
     );
   }
 
-  Widget _buildRoutineTableWidget(List<Routine> routines, List<Teacher> teachers) {
+  // 🔥 Routes to exam-specific layout when in Exam mode
+  Widget _buildRoutineTableWidget(
+      List<Routine> routines, List<Teacher> teachers) {
+    if (_routineType == 'Exam') {
+      return _buildExamRoutineWidget(routines, teachers);
+    }
+
     final Map<String, List<Routine>> dayMap = {};
     for (var r in routines) {
       dayMap.putIfAbsent(r.day, () => []).add(r);
     }
 
     List<String> dayOrder = ['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'];
+    final orderedDays = dayOrder.where((d) => dayMap.containsKey(d)).toList();
     final currentTimeSlots = _getCurrentTimeSlots();
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: dayOrder.where((d) => dayMap.containsKey(d)).length,
+      itemCount: orderedDays.length,
       itemBuilder: (context, index) {
-        final day = dayOrder.firstWhere((d) => dayMap.containsKey(d));
-        dayOrder.remove(day);
+        final day = orderedDays[index];
         final dayRoutines = dayMap[day]!;
 
         final Map<String, List<Routine>> batchMap = {};
@@ -918,16 +1196,18 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           batchMap.putIfAbsent(r.batchId, () => []).add(r);
         }
 
-        final batches = batchMap.keys.toList()..sort((a, b) {
-          final aNum = int.tryParse(a) ?? 0;
-          final bNum = int.tryParse(b) ?? 0;
-          return bNum.compareTo(aNum);
-        });
+        final batches = batchMap.keys.toList()
+          ..sort((a, b) {
+            final aNum = int.tryParse(a) ?? 0;
+            final bNum = int.tryParse(b) ?? 0;
+            return bNum.compareTo(aNum);
+          });
 
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -936,18 +1216,14 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
                 decoration: BoxDecoration(
                   color: _getDayColor(day),
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
-                  ),
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12)),
                 ),
-                child: Text(
-                  day.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                child: Text(day.toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
               ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -959,52 +1235,79 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
                     headingRowHeight: 40,
                     dataRowMinHeight: 50,
                     dataRowMaxHeight: 70,
-                    headingRowColor: WidgetStateProperty.all(Colors.grey[200]),
+                    headingRowColor:
+                        WidgetStateProperty.all(Colors.grey[200]),
                     columns: [
-                      const DataColumn(label: Text('Batch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                      ...currentTimeSlots.map((slot) =>
-                          DataColumn(label: Text(slot['time'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)))
-                      ),
+                      const DataColumn(
+                          label: Text('Batch',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12))),
+                      ...currentTimeSlots.map((slot) => DataColumn(
+                          label: Text(slot['time'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10)))),
                     ],
                     rows: batches.map((batch) {
                       final Map<int, Routine> slotMap = {};
                       for (var r in batchMap[batch]!) {
                         slotMap[r.slot] = r;
                       }
-
                       return DataRow(cells: [
-                        DataCell(Container(
+                        DataCell(SizedBox(
                           width: 55,
-                          child: Text('Batch $batch', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('Batch $batch',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         )),
                         ...currentTimeSlots.map((slot) {
                           final slotNum = slot['slot'] as int;
                           if (slotMap.containsKey(slotNum)) {
                             final r = slotMap[slotNum]!;
-                            final shortName = _getTeacherShortName(r.teacherName, teachers);
+                            final shortName =
+                                _getTeacherShortName(r.teacherName, teachers);
                             return DataCell(
-                              Container(
+                              SizedBox(
                                 width: 120,
-                                padding: const EdgeInsets.all(4),
                                 child: GestureDetector(
                                   onLongPress: () => _showEditDialog(r),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(r.courseCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                                      const SizedBox(height: 2),
-                                      Text(shortName, style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                                      Text(r.roomNo ?? 'TBA', style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                                    ],
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(r.courseCode,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11)),
+                                        const SizedBox(height: 2),
+                                        Text(shortName,
+                                            style: const TextStyle(
+                                                fontSize: 9,
+                                                color: Colors.grey)),
+                                        Text(r.roomNo ?? 'TBA',
+                                            style: const TextStyle(
+                                                fontSize: 9,
+                                                color: Colors.grey)),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                               onTap: () => _showEditDialog(r),
                             );
                           } else {
-                            return DataCell(
-                              Container(width: 120, padding: const EdgeInsets.all(4), child: const Text('-', style: TextStyle(fontSize: 12))),
+                            return const DataCell(
+                              SizedBox(
+                                  width: 120,
+                                  child: Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Text('-',
+                                          style: TextStyle(fontSize: 12)))),
                             );
                           }
                         }),
@@ -1020,9 +1323,122 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
     );
   }
 
+  // 🔥 Exam-specific layout: Date → list of (Time | Batch | Course | Room)
+  Widget _buildExamRoutineWidget(
+      List<Routine> routines, List<Teacher> teachers) {
+    final Map<String, List<Routine>> dateMap = {};
+    for (var r in routines) {
+      final key = r.date != null
+          ? '${r.date!.year}-${r.date!.month.toString().padLeft(2, '0')}-${r.date!.day.toString().padLeft(2, '0')}'
+          : 'No Date';
+      dateMap.putIfAbsent(key, () => []).add(r);
+    }
+
+    final dateKeys = dateMap.keys.toList()..sort();
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: dateKeys.length,
+      itemBuilder: (context, index) {
+        final dateKey = dateKeys[index];
+        final dayRoutines = dateMap[dateKey]!;
+        final dt = dayRoutines.first.date;
+        final dayName = dt != null ? _weekdayName(dt.weekday) : '';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1976D2),
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.calendar_today,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text('$dateKey  ($dayName)',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                ]),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columnSpacing: 16,
+                  headingRowColor:
+                      WidgetStateProperty.all(Colors.grey[200]),
+                  columns: const [
+                    DataColumn(
+                        label: Text('Time',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(
+                        label: Text('Batch',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(
+                        label: Text('Course',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(
+                        label: Text('Room',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: dayRoutines.map((r) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(
+                            '${r.startTime ?? "-"} - ${r.endTime ?? "-"}',
+                            style: const TextStyle(fontSize: 12))),
+                        DataCell(Text('Batch ${r.batchId}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold))),
+                        DataCell(SizedBox(
+                          width: 220,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(r.courseCode,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12)),
+                              Text(r.courseTitle,
+                                  style: const TextStyle(
+                                      fontSize: 10, color: Colors.grey),
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        )),
+                        DataCell(Text(r.roomNo ?? 'TBA',
+                            style: const TextStyle(fontSize: 12))),
+                      ],
+                      onLongPress: () => _showEditDialog(r),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTypeChip(String label, bool isSelected) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        if (_routineType == label) return;
         setState(() {
           _routineType = label;
           _selectedDepartment = null;
@@ -1030,7 +1446,7 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           _selectedTeacher = null;
           _selectedDay = 'All';
         });
-        _refreshData();
+        await _refreshData();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1038,18 +1454,17 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? const Color(0xFF1976D2) : Colors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
+        child: Text(label,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFF1976D2) : Colors.white,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            )),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -1060,21 +1475,32 @@ class _ViewRoutineScreenState extends State<ViewRoutineScreen> with AutomaticKee
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.grey[600])),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color)),
+          Text(label,
+              style: TextStyle(fontSize: 9, color: Colors.grey[600])),
         ],
       ),
     );
   }
 
   Color _getDayColor(String day) {
-    switch(day) {
-      case 'Friday': return Colors.purple;
-      case 'Saturday': return Colors.blue;
-      case 'Sunday': return Colors.green;
-      case 'Monday': return Colors.orange;
-      case 'Tuesday': return Colors.red;
-      default: return Colors.grey;
+    switch (day) {
+      case 'Friday':
+        return Colors.purple;
+      case 'Saturday':
+        return Colors.blue;
+      case 'Sunday':
+        return Colors.green;
+      case 'Monday':
+        return Colors.orange;
+      case 'Tuesday':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 }

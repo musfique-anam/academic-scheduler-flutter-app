@@ -1,20 +1,20 @@
 // lib/data/models/routine_model.dart
 
 class Routine {
-  final int? id;
-  final String type;
-  final String departmentId;
-  final String batchId;
-  final int? courseId;  // Add this field
-  final String courseCode;
-  final String courseTitle;
+  int? id;
+  String type;
+  String departmentId;
+  String batchId;
+  int? courseId;
+  String courseCode;
+  String courseTitle;
   String? teacherId;
   String? teacherName;
   String? roomId;
   String? roomNo;
   String day;
   int slot;
-  int? endSlot;  // Add this field for double-slot courses (Labs)
+  int? endSlot;
   String? startTime;
   String? endTime;
   String? status;
@@ -73,21 +73,33 @@ class Routine {
       type: map['type'] ?? 'class',
       departmentId: map['departmentId']?.toString() ?? '',
       batchId: map['batchId']?.toString() ?? '',
-      courseId: map['courseId'],
+      courseId: map['courseId'] is int
+          ? map['courseId']
+          : (map['courseId'] == null
+              ? null
+              : int.tryParse(map['courseId'].toString())),
       courseCode: map['courseCode'] ?? '',
       courseTitle: map['courseTitle'] ?? '',
       teacherId: map['teacherId']?.toString(),
       teacherName: map['teacherName'],
       roomId: map['roomId']?.toString(),
-      roomNo: map['roomNo'],
+      roomNo: map['roomNo']?.toString(),
       day: map['day'] ?? '',
-      slot: map['slot'] ?? 1,
-      endSlot: map['endSlot'],
-      startTime: map['startTime'],
-      endTime: map['endTime'],
-      status: map['status'],
-      conflictReason: map['conflictReason'],
-      date: map['date'] != null ? DateTime.parse(map['date']) : null,
+      slot: map['slot'] is int
+          ? map['slot']
+          : int.tryParse(map['slot']?.toString() ?? '1') ?? 1,
+      endSlot: map['endSlot'] is int
+          ? map['endSlot']
+          : (map['endSlot'] == null
+              ? null
+              : int.tryParse(map['endSlot'].toString())),
+      startTime: map['startTime']?.toString(),
+      endTime: map['endTime']?.toString(),
+      status: map['status']?.toString(),
+      conflictReason: map['conflictReason']?.toString(),
+      date: map['date'] != null
+          ? DateTime.tryParse(map['date'].toString())
+          : null,
     );
   }
 
@@ -134,4 +146,8 @@ class Routine {
       date: date ?? this.date,
     );
   }
+
+  @override
+  String toString() =>
+      'Routine{id: $id, type: $type, course: $courseCode, day: $day, slot: $slot}';
 }

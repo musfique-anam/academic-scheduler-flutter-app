@@ -8,12 +8,9 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../providers/auth_provider.dart';
 import '../../../providers/routine_provider.dart';
 import '../../../providers/teacher_provider.dart';
-import '../../../providers/course_provider.dart';
 import '../../../data/models/teacher_model.dart';
 import '../../../data/models/routine_model.dart';
 import 'teacher_profile_screen.dart';
-import 'teacher_availability_screen.dart';
-import 'teacher_interested_courses_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -53,14 +50,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   Future<void> _loadRoutines() async {
     try {
-      final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+      final routineProvider =
+          Provider.of<RoutineProvider>(context, listen: false);
       await routineProvider.loadRoutinesFromDatabase();
-      if (mounted) {
-        setState(() {});
-      }
-      print('✅ Routines loaded for teacher dashboard');
+      if (mounted) setState(() {});
     } catch (e) {
-      print('❌ Error loading routines: $e');
+      debugPrint('❌ Error loading routines: $e');
     }
   }
 
@@ -71,51 +66,64 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     });
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final teacherProvider = Provider.of<TeacherProvider>(context, listen: false);
+      final authProvider =
+          Provider.of<AuthProvider>(context, listen: false);
+      final teacherProvider =
+          Provider.of<TeacherProvider>(context, listen: false);
 
       await teacherProvider.loadTeachers();
 
       if (authProvider.currentUser != null) {
         int teacherId = authProvider.currentUser!['id'];
-        print('🔍 Loading teacher with ID: $teacherId');
-
         _teacher = teacherProvider.getTeacherById(teacherId);
-
         if (_teacher == null) {
-          setState(() {
-            _errorMessage = 'Teacher data not found';
-          });
-        } else {
-          print('✅ Teacher loaded: ${_teacher!.name}');
+          setState(() => _errorMessage = 'Teacher data not found');
         }
       }
     } catch (e) {
-      print('❌ Error: $e');
-      setState(() {
-        _errorMessage = 'Error loading teacher data';
-      });
+      setState(() => _errorMessage = 'Error loading teacher data');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _refreshData() async {
     await _loadTeacherData();
     await _loadRoutines();
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
+  }
+
+  Future<bool> _confirmExit() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Logout?'),
+            content:
+                const Text('Going back will log you out. Continue?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Future<void> _downloadPDF(List<Routine> routines) async {
     if (routines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No routines to download'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('No routines to download'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
@@ -123,46 +131,59 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     try {
       final pdf = pw.Document();
 
-      Map<String, List<Routine>> routinesByDay = {};
-      for (var routine in routines) {
-        routinesByDay.putIfAbsent(routine.day, () => []).add(routine);
+      Map<String, List<Routine>> byDay = {};
+      for (var r in routines) {
+        byDay.putIfAbsent(r.day, () => []).add(r);
       }
-
-      List<String> dayOrder = ['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'];
+      List<String> dayOrder = [
+        'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'
+      ];
 
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.all(20),
+          margin: const pw.EdgeInsets.all(20),
           build: (pw.Context context) {
             return [
               pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text('Pundra University of Science & Technology', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 5),
-                    pw.Text('Department of Computer Science & Engineering', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 5),
-                    pw.Text('Teacher Class Routine', style: pw.TextStyle(fontSize: 14)),
-                    pw.SizedBox(height: 10),
-                    pw.Text('Teacher: ${_teacher?.name ?? 'N/A'}', style: pw.TextStyle(fontSize: 12)),
-                    pw.SizedBox(height: 20),
-                  ],
-                ),
+                child: pw.Column(children: [
+                  pw.Text('Pundra University of Science & Technology',
+                      style: pw.TextStyle(
+                          fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 5),
+                  pw.Text('Teacher Class Routine',
+                      style: pw.TextStyle(
+                          fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  pw.Text('Teacher: ${_teacher?.name ?? "N/A"}',
+                      style: const pw.TextStyle(fontSize: 12)),
+                  pw.SizedBox(height: 20),
+                ]),
               ),
               for (var day in dayOrder)
-                if (routinesByDay.containsKey(day))
+                if (byDay.containsKey(day))
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Container(padding: pw.EdgeInsets.all(8), color: PdfColors.blue100, child: pw.Text(day.toUpperCase(), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold))),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(8),
+                        color: PdfColors.blue100,
+                        child: pw.Text(day.toUpperCase(),
+                            style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold)),
+                      ),
                       pw.SizedBox(height: 5),
-                      _buildRoutineTable(routinesByDay[day]!),
+                      _buildRoutinePdfTable(byDay[day]!),
                       pw.SizedBox(height: 15),
                     ],
                   ),
               pw.SizedBox(height: 20),
-              pw.Center(child: pw.Text('Generated by Smart Academic Scheduler', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500))),
+              pw.Center(
+                  child: pw.Text(
+                      'Generated by Smart Academic Scheduler',
+                      style: const pw.TextStyle(
+                          fontSize: 8, color: PdfColors.grey500))),
             ];
           },
         ),
@@ -170,86 +191,77 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
       await Printing.sharePdf(
         bytes: await pdf.save(),
-        filename: 'teacher_routine_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        filename:
+            'teacher_routine_${DateTime.now().millisecondsSinceEpoch}.pdf',
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF downloaded successfully'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('PDF downloaded successfully'),
+              backgroundColor: Colors.green),
         );
       }
     } catch (e) {
-      print('❌ PDF Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating PDF: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error generating PDF: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  pw.Widget _buildRoutineTable(List<Routine> routines) {
+  pw.Widget _buildRoutinePdfTable(List<Routine> routines) {
     routines.sort((a, b) => a.slot.compareTo(b.slot));
 
-    List<List<String>> tableData = [
-      ['Slot', 'Time', 'Course Code', 'Course Title', 'Batch', 'Room']
-    ];
-
-    for (var routine in routines) {
-      tableData.add([
-        '${routine.slot}',
-        '${routine.startTime}-${routine.endTime}',
-        routine.courseCode,
-        routine.courseTitle.length > 25 ? '${routine.courseTitle.substring(0, 22)}...' : routine.courseTitle,
-        'Batch ${routine.batchId ?? 'N/A'}',
-        routine.roomNo ?? 'TBA',
-      ]);
-    }
+    final headers = ['Slot', 'Time', 'Code', 'Title', 'Batch', 'Room'];
+    final data = routines
+        .map((r) => [
+              '${r.slot}',
+              '${r.startTime ?? "-"}-${r.endTime ?? "-"}',
+              r.courseCode,
+              r.courseTitle.length > 25
+                  ? '${r.courseTitle.substring(0, 22)}...'
+                  : r.courseTitle,
+              'Batch ${r.batchId}',
+              r.roomNo ?? 'TBA',
+            ])
+        .toList();
 
     return pw.TableHelper.fromTextArray(
-      headers: tableData[0],
-      data: tableData.sublist(1),
+      headers: headers,
+      data: data,
       border: pw.TableBorder.all(),
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-      cellStyle: pw.TextStyle(fontSize: 8),
+      headerStyle:
+          pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+      cellStyle: const pw.TextStyle(fontSize: 8),
       cellAlignment: pw.Alignment.centerLeft,
       headerAlignment: pw.Alignment.centerLeft,
     );
   }
 
-  void _showNotifications(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [Text('No new notifications')],
-          ),
-        );
-      },
-    );
-  }
-
-  // FIXED: Logout method - goes to Login screen, not Admin Dashboard
-  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+  void _showLogoutDialog(AuthProvider authProvider) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               authProvider.logout();
-              // This clears all previous routes and goes to login
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/login', (route) => false);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Logout'),
           ),
         ],
@@ -260,11 +272,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final routineProvider = Provider.of<RoutineProvider>(context);
 
     if (_errorMessage != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Teacher Dashboard'), backgroundColor: const Color(0xFF1976D2), foregroundColor: Colors.white),
+        appBar: AppBar(
+          title: const Text('Teacher Dashboard'),
+          backgroundColor: const Color(0xFF1976D2),
+          foregroundColor: Colors.white,
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -276,7 +291,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ElevatedButton(
                 onPressed: () {
                   authProvider.logout();
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/login', (route) => false);
                 },
                 child: const Text('Back to Login'),
               ),
@@ -286,113 +302,111 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       );
     }
 
-    if (_isLoading) {
+    if (_isLoading || _teacher == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Teacher Dashboard'), backgroundColor: const Color(0xFF1976D2), foregroundColor: Colors.white),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Loading teacher data...'),
-            ],
-          ),
+        appBar: AppBar(
+          title: const Text('Teacher Dashboard'),
+          backgroundColor: const Color(0xFF1976D2),
+          foregroundColor: Colors.white,
         ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (_teacher == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Teacher Dashboard'), backgroundColor: const Color(0xFF1976D2), foregroundColor: Colors.white),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.orange),
-              const SizedBox(height: 16),
-              const Text('Teacher data not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Please contact administrator', style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  authProvider.logout();
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                },
-                child: const Text('Logout'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Teacher Dashboard'),
-        backgroundColor: const Color(0xFF1976D2),
-        foregroundColor: Colors.white,
-        elevation: 4,
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData, tooltip: 'Refresh'),
-          IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () => _showNotifications(context)),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.account_circle),
-            onSelected: (value) {
-              if (value == 'profile') {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => TeacherProfileScreen(teacher: _teacher!)))
-                    .then((_) => _refreshData());
-              } else if (value == 'logout') {
-                _showLogoutDialog(context, authProvider);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'profile', child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 8), Text('My Profile')])),
-              const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, size: 18, color: Colors.red), SizedBox(width: 8), Text('Logout', style: TextStyle(color: Colors.red))])),
-            ],
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            DashboardTab(teacher: _teacher!, onViewRoutine: () {
-              setState(() {
-                _selectedIndex = 1;
-              });
-            }),
-            RoutineTab(teacher: _teacher!, onDownloadPDF: _downloadPDF),
-            TeacherAvailabilityScreen(teacher: _teacher!),
-            TeacherInterestedCoursesScreen(teacher: _teacher!),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await _confirmExit();
+        if (shouldExit && mounted) {
+          authProvider.logout();
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+              _selectedIndex == 0 ? 'Teacher Dashboard' : 'My Routine'),
+          backgroundColor: const Color(0xFF1976D2),
+          foregroundColor: Colors.white,
+          elevation: 4,
+          automaticallyImplyLeading: false, // 🔥 hide default back arrow
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              onPressed: _refreshData,
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.account_circle),
+              onSelected: (value) {
+                if (value == 'profile') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            TeacherProfileScreen(teacher: _teacher!)),
+                  ).then((_) => _refreshData());
+                } else if (value == 'logout') {
+                  _showLogoutDialog(authProvider);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'profile',
+                  child: Row(children: [
+                    Icon(Icons.person, size: 18),
+                    SizedBox(width: 8),
+                    Text('My Profile'),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'logout',
+                  child: Row(children: [
+                    Icon(Icons.logout, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Logout', style: TextStyle(color: Colors.red)),
+                  ]),
+                ),
+              ],
+            ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-          if (index == 1) {
-            _loadRoutines();
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'My Routine'),
-          BottomNavigationBarItem(icon: Icon(Icons.access_time), label: 'Availability'),
-          BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Courses'),
-        ],
+        body: RefreshIndicator(
+          onRefresh: _refreshData,
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: [
+              DashboardTab(
+                teacher: _teacher!,
+                onViewRoutine: () => setState(() => _selectedIndex = 1),
+              ),
+              RoutineTab(teacher: _teacher!, onDownloadPDF: _downloadPDF),
+            ],
+          ),
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: (index) {
+            setState(() => _selectedIndex = index);
+            if (index == 1) _loadRoutines();
+          },
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFF1976D2),
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard), label: 'Dashboard'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'View Routine'),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ========== DASHBOARD TAB WIDGET ==========
+// ========== DASHBOARD TAB ==========
 class DashboardTab extends StatelessWidget {
   final Teacher teacher;
   final VoidCallback onViewRoutine;
@@ -405,7 +419,7 @@ class DashboardTab extends StatelessWidget {
 
   String _getTodayDay() {
     DateTime now = DateTime.now();
-    switch(now.weekday) {
+    switch (now.weekday) {
       case 5: return 'Friday';
       case 6: return 'Saturday';
       case 7: return 'Sunday';
@@ -416,7 +430,7 @@ class DashboardTab extends StatelessWidget {
   }
 
   Color _getTimeColor(int slot) {
-    switch(slot) {
+    switch (slot) {
       case 1: return Colors.blue;
       case 2: return Colors.green;
       case 3: return Colors.orange;
@@ -428,11 +442,15 @@ class DashboardTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final routineProvider = Provider.of<RoutineProvider>(context);
-    var teacherRoutines = routineProvider.getRoutinesByTeacher(teacher.id!);
-    int totalClasses = teacherRoutines.length;
-    int todayClasses = teacherRoutines.where((r) => r.day == _getTodayDay()).length;
-    int totalCredits = teacherRoutines.length;
-    double workloadPercentage = teacher.maxLoad > 0 ? (totalCredits / teacher.maxLoad) * 100 : 0;
+    final teacherRoutines =
+        routineProvider.getRoutinesByTeacher(teacher.id!);
+    final int totalClasses = teacherRoutines.length;
+    final int todayClasses =
+        teacherRoutines.where((r) => r.day == _getTodayDay()).length;
+    final int totalCredits = teacherRoutines.length;
+    final double workloadPercentage = teacher.maxLoad > 0
+        ? (totalCredits / teacher.maxLoad) * 100
+        : 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -441,26 +459,39 @@ class DashboardTab extends StatelessWidget {
         children: [
           Card(
             elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF64B5F6)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Welcome, ${teacher.name}!', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 8),
-                  Text(teacher.isProfileCompleted ? 'Your profile is complete' : 'Please complete your profile',
-                      style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9))),
+                  Text('Welcome, ${teacher.name}!',
+                      style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text('Short Name: ${teacher.shortName}',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.9))),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _buildInfoChip(Icons.class_, '$todayClasses classes today'),
+                      _buildInfoChip(
+                          Icons.class_, '$todayClasses today'),
                       const SizedBox(width: 8),
-                      _buildInfoChip(Icons.speed, '${workloadPercentage.toStringAsFixed(1)}% load'),
+                      _buildInfoChip(Icons.speed,
+                          '${workloadPercentage.toStringAsFixed(1)}% load'),
                     ],
                   ),
                 ],
@@ -476,71 +507,66 @@ class DashboardTab extends StatelessWidget {
             crossAxisSpacing: 12,
             childAspectRatio: 1.5,
             children: [
-              _buildStatCard('Total Classes', '$totalClasses', Icons.class_, Colors.blue),
-              _buildStatCard('This Week', '$totalClasses', Icons.calendar_view_week, Colors.green),
-              _buildStatCard('Max Load', '${teacher.maxLoad} cr', Icons.speed, Colors.orange),
-              _buildStatCard('Used', '$totalCredits cr', Icons.check_circle, Colors.purple),
+              _buildStatCard('Total Classes', '$totalClasses',
+                  Icons.class_, Colors.blue),
+              _buildStatCard('Today', '$todayClasses',
+                  Icons.calendar_today, Colors.green),
+              _buildStatCard('Max Load', '${teacher.maxLoad}',
+                  Icons.speed, Colors.orange),
+              _buildStatCard('Assigned', '$totalCredits',
+                  Icons.check_circle, Colors.purple),
             ],
           ),
           const SizedBox(height: 20),
-          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Quick Action',
+              style:
+                  TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildActionCard('View Routine', Icons.calendar_today, Colors.blue, onViewRoutine)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildActionCard('Update Availability', Icons.access_time, Colors.green, () {})),
-              const SizedBox(width: 8),
-              Expanded(child: _buildActionCard('Interested Courses', Icons.book, Colors.orange, () {})),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: _buildActionCard('View My Routine',
+                Icons.calendar_today, Colors.blue, onViewRoutine),
           ),
           const SizedBox(height: 20),
-          const Text('Today\'s Schedule', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text("Today's Schedule",
+              style:
+                  TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           teacherRoutines.where((r) => r.day == _getTodayDay()).isEmpty
               ? Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
-            child: const Center(child: Text('No classes scheduled for today')),
-          )
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Center(
+                      child: Text('No classes scheduled for today')),
+                )
               : ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: teacherRoutines.where((r) => r.day == _getTodayDay()).length,
-            itemBuilder: (context, index) {
-              final routine = teacherRoutines.where((r) => r.day == _getTodayDay()).toList()[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(backgroundColor: _getTimeColor(routine.slot), child: Text('${routine.slot}', style: const TextStyle(color: Colors.white, fontSize: 12))),
-                  title: Text('${routine.courseCode} - ${routine.courseTitle}'),
-                  subtitle: Text('${routine.startTime} - ${routine.endTime} | Batch: ${routine.batchId} | Room: ${routine.roomNo ?? 'TBA'}'),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: teacherRoutines
+                      .where((r) => r.day == _getTodayDay())
+                      .length,
+                  itemBuilder: (context, index) {
+                    final routine = teacherRoutines
+                        .where((r) => r.day == _getTodayDay())
+                        .toList()[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                            backgroundColor: _getTimeColor(routine.slot),
+                            child: Text('${routine.slot}',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12))),
+                        title: Text(
+                            '${routine.courseCode} - ${routine.courseTitle}'),
+                        subtitle: Text(
+                            '${routine.startTime ?? "-"} - ${routine.endTime ?? "-"} | Batch: ${routine.batchId} | Room: ${routine.roomNo ?? 'TBA'}'),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          if (!teacher.isProfileCompleted)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Profile Incomplete', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                        const SizedBox(height: 4),
-                        Text('Please update your availability and interested courses', style: TextStyle(color: Colors.orange[700])),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -549,21 +575,26 @@ class DashboardTab extends StatelessWidget {
   Widget _buildInfoChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20)),
       child: Row(
         children: [
           Icon(icon, color: Colors.white, size: 16),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -571,25 +602,39 @@ class DashboardTab extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
+            Text(label,
+                style:
+                    TextStyle(fontSize: 10, color: Colors.grey[600])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionCard(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionCard(
+      String label, IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.3))),
-        child: Column(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.3))),
+        child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 4),
-            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold), maxLines: 2),
+            Icon(icon, color: color, size: 32),
+            const SizedBox(width: 16),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 16,
+                    color: color,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -597,7 +642,7 @@ class DashboardTab extends StatelessWidget {
   }
 }
 
-// ========== ROUTINE TAB WIDGET ==========
+// ========== ROUTINE TAB ==========
 class RoutineTab extends StatelessWidget {
   final Teacher teacher;
   final Function(List<Routine>) onDownloadPDF;
@@ -609,12 +654,12 @@ class RoutineTab extends StatelessWidget {
   });
 
   Color _getDayColor(String day) {
-    switch(day) {
-      case 'Friday': return Colors.purple;
+    switch (day) {
+      case 'Friday':   return Colors.purple;
       case 'Saturday': return Colors.blue;
-      case 'Sunday': return Colors.green;
-      case 'Monday': return Colors.orange;
-      case 'Tuesday': return Colors.red;
+      case 'Sunday':   return Colors.green;
+      case 'Monday':   return Colors.orange;
+      case 'Tuesday':  return Colors.red;
       default: return Colors.grey;
     }
   }
@@ -622,7 +667,8 @@ class RoutineTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final routineProvider = Provider.of<RoutineProvider>(context);
-    var teacherRoutines = routineProvider.getRoutinesByTeacher(teacher.id!);
+    final teacherRoutines =
+        routineProvider.getRoutinesByTeacher(teacher.id!);
 
     return Column(
       children: [
@@ -631,23 +677,30 @@ class RoutineTab extends StatelessWidget {
           color: Colors.grey[100],
           child: Row(
             children: [
-              const Text('My Routine', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('My Routine',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () async {
-                  final provider = Provider.of<RoutineProvider>(context, listen: false);
+                  final provider =
+                      Provider.of<RoutineProvider>(context, listen: false);
                   await provider.loadRoutinesFromDatabase();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Routine refreshed'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
+                      const SnackBar(
+                          content: Text('Routine refreshed'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 1)),
                     );
                   }
                 },
                 tooltip: 'Refresh',
               ),
               IconButton(
-                icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                icon:
+                    const Icon(Icons.picture_as_pdf, color: Colors.red),
                 onPressed: () => onDownloadPDF(teacherRoutines),
                 tooltip: 'Download PDF',
               ),
@@ -657,35 +710,43 @@ class RoutineTab extends StatelessWidget {
         Expanded(
           child: teacherRoutines.isEmpty
               ? const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.calendar_today, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No classes assigned yet'),
-                SizedBox(height: 8),
-                Text('Please contact administrator', style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: teacherRoutines.length,
-            itemBuilder: (context, index) {
-              final routine = teacherRoutines[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(backgroundColor: _getDayColor(routine.day), child: Text(routine.day[0], style: const TextStyle(color: Colors.white, fontSize: 12))),
-                  title: Text('${routine.courseCode} - ${routine.courseTitle}'),
-                  subtitle: Text(
-                    '${routine.day} | Slot ${routine.slot} (${routine.startTime}-${routine.endTime})\n'
-                        'Batch: ${routine.batchId} | Room: ${routine.roomNo ?? 'TBA'}',
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.calendar_today,
+                          size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('No classes assigned yet'),
+                      SizedBox(height: 8),
+                      Text('Please contact administrator',
+                          style: TextStyle(color: Colors.grey)),
+                    ],
                   ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: teacherRoutines.length,
+                  itemBuilder: (context, index) {
+                    final routine = teacherRoutines[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                            backgroundColor: _getDayColor(routine.day),
+                            child: Text(routine.day[0],
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12))),
+                        title: Text(
+                            '${routine.courseCode} - ${routine.courseTitle}'),
+                        subtitle: Text(
+                          '${routine.day} | Slot ${routine.slot} (${routine.startTime ?? "-"}-${routine.endTime ?? "-"})\n'
+                          'Batch: ${routine.batchId} | Room: ${routine.roomNo ?? 'TBA'}',
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
