@@ -7,8 +7,8 @@ class Room {
   String? equipment;
   int? pcTotal;
   int? pcActive;
-  int? departmentId; // Assigned department
-  String? departmentName; // For display
+  int? departmentId;
+  String? departmentName;
 
   Room({
     this.id,
@@ -68,12 +68,26 @@ class Room {
   // Parse floor from room number
   static int getFloorFromRoomNo(String roomNo) {
     try {
-      // Remove 'NB' and parse number
       String numberStr = roomNo.replaceAll('NB', '');
       int number = int.parse(numberStr);
-      return number ~/ 100; // Integer division to get floor
+      return number ~/ 100;
     } catch (e) {
       return 1;
     }
   }
+
+  @override
+  String toString() {
+    return 'Room{id: $id, roomNo: $roomNo, floor: $floor}';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Room &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

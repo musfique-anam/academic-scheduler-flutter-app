@@ -6,8 +6,8 @@ class Course {
   String type; // Theory or Lab
   int batchId;
   int? teacherId;
-  String? batchName; // For display
-  String? teacherName; // For display
+  String? batchName;
+  String? teacherName;
 
   Course({
     this.id,
@@ -38,7 +38,9 @@ class Course {
       id: map['id'],
       code: map['code'],
       title: map['title'],
-      credit: map['credit'],
+      credit: (map['credit'] is int)
+          ? (map['credit'] as int).toDouble()
+          : map['credit'],
       type: map['type'],
       batchId: map['batchId'],
       teacherId: map['teacherId'],
@@ -51,4 +53,19 @@ class Course {
   // Lab requires 2 slots
   bool get isLab => type == 'Lab';
   int get requiredSlots => isLab ? 2 : 1;
+
+  @override
+  String toString() {
+    return 'Course{id: $id, code: $code, title: $title}';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Course &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

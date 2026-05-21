@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/logo_widget.dart';  // ← import ঠিক আছে
+import '../../utils/logo_widget.dart';
 import 'login_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'teacher/teacher_dashboard.dart';
@@ -60,20 +60,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        setState(() {
-          _isAnimationComplete = true;
-        });
+        setState(() => _isAnimationComplete = true);
         _checkAndNavigate();
       }
     });
 
     _controller.forward();
 
-    // 4 seconds delay
     Future.delayed(const Duration(seconds: 4), () {
-      setState(() {
-        _canNavigate = true;
-      });
+      setState(() => _canNavigate = true);
       _checkAndNavigate();
     });
   }
@@ -127,14 +122,9 @@ class _SplashScreenState extends State<SplashScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // Background Pattern
               Positioned.fill(
-                child: CustomPaint(
-                  painter: _BackgroundPatternPainter(),
-                ),
+                child: CustomPaint(painter: _BackgroundPatternPainter()),
               ),
-
-              // Main Content
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -151,20 +141,20 @@ class _SplashScreenState extends State<SplashScreen>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withOpacity(0.25),
                               blurRadius: 30,
-                              spreadRadius: 5,
+                              spreadRadius: 4,
                             ),
                           ],
                         ),
-                        child: const AppLogo(size: 150),  // ← সরাসরি AppLogo ব্যবহার
+                        child: const AppLogo(size: 150),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32),
 
-                  // App Name
+                  // App Name — refined, professional typography
                   FadeTransition(
                     opacity: _fadeAnimation,
                     child: Column(
@@ -174,39 +164,39 @@ class _SplashScreenState extends State<SplashScreen>
                             colors: [Colors.white, Color(0xFFE3F2FD)],
                           ).createShader(bounds),
                           child: const Text(
-                            'SMART ACADEMIC',
+                            'Smart Academic',
                             style: TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w500, // ← lighter, elegant
                               color: Colors.white,
-                              letterSpacing: 2,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black26,
-                                  offset: Offset(2, 2),
-                                  blurRadius: 4,
-                                ),
-                              ],
+                              letterSpacing: 1.2,
+                              height: 1.1,
                             ),
                           ),
                         ),
+                        const SizedBox(height: 4),
                         const Text(
-                          'SCHEDULER',
+                          'Scheduler',
                           style: TextStyle(
-                            fontSize: 38,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w300, // ← thin & modern
                             color: Colors.white,
-                            letterSpacing: 4,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black26,
-                                offset: Offset(2, 2),
-                                blurRadius: 4,
-                              ),
-                            ],
+                            letterSpacing: 6, // wide tracking = premium feel
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Divider line for elegance
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      width: 60,
+                      height: 1,
+                      color: Colors.white.withOpacity(0.4),
                     ),
                   ),
 
@@ -217,14 +207,12 @@ class _SplashScreenState extends State<SplashScreen>
                     opacity: _fadeAnimation,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 30,
-                        vertical: 12,
-                      ),
+                          horizontal: 28, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withOpacity(0.25),
                           width: 1,
                         ),
                       ),
@@ -232,10 +220,10 @@ class _SplashScreenState extends State<SplashScreen>
                         'Pundra University of Science & Technology',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
+                          fontWeight: FontWeight.w400, // ← regular, clean
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ),
@@ -243,41 +231,29 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const Spacer(flex: 2),
 
-                  // Developed By Section
+                  // Developed By
                   SlideTransition(
                     position: _slideAnimation,
                     child: FadeTransition(
                       opacity: _fadeAnimation,
                       child: Column(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'DESIGNED & DEVELOPED BY',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                              ),
+                          Text(
+                            'Designed & Developed by',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withOpacity(0.7),
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 2,
                             ),
                           ),
-                          const SizedBox(height: 15),
-
-                          // Developer Cards
+                          const SizedBox(height: 14),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildDeveloperCard('ANONTO', 'A'),
-                              const SizedBox(width: 20),
-                              _buildDeveloperCard('ARIF', 'A'),
+                              _buildDeveloperCard('Arif', 'A'),
+                              const SizedBox(width: 16),
+                              _buildDeveloperCard('Ananto', 'A'),
                             ],
                           ),
                         ],
@@ -287,7 +263,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const SizedBox(height: 30),
 
-                  // Loading Indicator with Timer
+                  // Loading
                   FadeTransition(
                     opacity: _fadeAnimation,
                     child: Column(
@@ -296,8 +272,8 @@ class _SplashScreenState extends State<SplashScreen>
                           alignment: Alignment.center,
                           children: [
                             SizedBox(
-                              width: 50,
-                              height: 50,
+                              width: 46,
+                              height: 46,
                               child: TweenAnimationBuilder<double>(
                                 tween: Tween(begin: 0.0, end: 1.0),
                                 duration: const Duration(seconds: 4),
@@ -305,14 +281,16 @@ class _SplashScreenState extends State<SplashScreen>
                                 builder: (context, value, child) {
                                   return CircularProgressIndicator(
                                     value: value,
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                                    strokeWidth: 3,
-                                    backgroundColor: Colors.white.withOpacity(0.2),
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                            Colors.white),
+                                    strokeWidth: 2.5,
+                                    backgroundColor:
+                                        Colors.white.withOpacity(0.15),
                                   );
                                 },
                               ),
                             ),
-
                             TweenAnimationBuilder<double>(
                               tween: Tween(begin: 4.0, end: 0.0),
                               duration: const Duration(seconds: 4),
@@ -321,22 +299,22 @@ class _SplashScreenState extends State<SplashScreen>
                                   '${value.toInt()}',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 );
                               },
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'LOADING...',
+                        const SizedBox(height: 10),
+                        Text(
+                          'Loading',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.7),
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 3,
                           ),
                         ),
                       ],
@@ -349,12 +327,12 @@ class _SplashScreenState extends State<SplashScreen>
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'VERSION 1.0.0',
+                      'v 1.0.0',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: Colors.white.withOpacity(0.4),
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 1.5,
                       ),
                     ),
                   ),
@@ -369,18 +347,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildDeveloperCard(String name, String initial) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -388,28 +363,21 @@ class _SplashScreenState extends State<SplashScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
                 colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
               ),
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1976D2).withOpacity(0.3),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: Center(
               child: Text(
                 initial,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -418,10 +386,10 @@ class _SplashScreenState extends State<SplashScreen>
           Text(
             name,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1976D2),
-              letterSpacing: 0.5,
+              fontSize: 14,
+              fontWeight: FontWeight.w500, // ← lighter, professional
+              color: Color(0xFF0D47A1),
+              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -450,22 +418,11 @@ class _BackgroundPatternPainter extends CustomPainter {
     paint.style = PaintingStyle.fill;
 
     canvas.drawCircle(
-      Offset(size.width * 0.1, size.height * 0.1),
-      50,
-      paint,
-    );
-
+        Offset(size.width * 0.1, size.height * 0.1), 50, paint);
     canvas.drawCircle(
-      Offset(size.width * 0.9, size.height * 0.9),
-      80,
-      paint,
-    );
-
+        Offset(size.width * 0.9, size.height * 0.9), 80, paint);
     canvas.drawCircle(
-      Offset(size.width * 0.2, size.height * 0.8),
-      40,
-      paint,
-    );
+        Offset(size.width * 0.2, size.height * 0.8), 40, paint);
   }
 
   @override

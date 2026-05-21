@@ -66,9 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Color(0xFF1976D2),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   // Welcome Text
                   const Text(
                     'Welcome Back!',
@@ -78,9 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.white,
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
                   Text(
                     'Sign in to continue',
                     style: TextStyle(
@@ -88,9 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.white.withOpacity(0.9),
                     ),
                   ),
-
                   const SizedBox(height: 40),
-
                   // Role Selection
                   Container(
                     padding: const EdgeInsets.all(4),
@@ -100,18 +94,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: _buildRoleButton('Admin', 'admin'),
-                        ),
-                        Expanded(
-                          child: _buildRoleButton('Teacher', 'teacher'),
-                        ),
+                        Expanded(child: _buildRoleButton('Admin', 'admin')),
+                        Expanded(child: _buildRoleButton('Teacher', 'teacher')),
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   // Login Form
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -147,9 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                           ),
-
                           const SizedBox(height: 20),
-
                           // Password Field
                           TextFormField(
                             controller: _passwordController,
@@ -180,9 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                           ),
-
                           const SizedBox(height: 20),
-
                           // Login Button
                           Consumer<AuthProvider>(
                             builder: (context, authProvider, child) {
@@ -192,7 +176,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: ElevatedButton(
                                   onPressed: authProvider.isLoading
                                       ? null
-                                      : () => _handleLogin(context, authProvider),
+                                      : () => _handleLogin(
+                                          context, authProvider),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF1976D2),
                                     foregroundColor: Colors.white,
@@ -202,20 +187,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   child: authProvider.isLoading
                                       ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
                                       : const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                          'Login',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                 ),
                               );
                             },
@@ -224,12 +209,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   // Developer Credit
                   Text(
-                    'Designed & Developed By Anonto & Arif',
+                    'Designed & Developed By Arif & Ananto',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white.withOpacity(0.7),
@@ -272,27 +255,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleLogin(BuildContext context, AuthProvider authProvider) async {
     if (_formKey.currentState!.validate()) {
-      print('🔑 Login attempt: ${_usernameController.text} as $_selectedRole');
-
       bool success = await authProvider.login(
         _usernameController.text,
         _passwordController.text,
         _selectedRole,
       );
 
-      print('✅ Login success: $success');
-      print('👤 Current user: ${authProvider.currentUser}');
-
       if (success && mounted) {
+        // 🔥 Clears entire back stack so back-button can't return to a previous dashboard
         if (_selectedRole == 'admin') {
-          Navigator.pushReplacement(
-            context,
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const AdminDashboard()),
+            (route) => false,
           );
         } else {
-          Navigator.pushReplacement(
-            context,
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const TeacherDashboard()),
+            (route) => false,
           );
         }
       } else if (mounted) {

@@ -1,6 +1,7 @@
 // lib/main.dart - FINAL VERSION
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/dashboard_provider.dart';
@@ -23,20 +24,32 @@ import 'presentation/screens/teacher/teacher_dashboard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final dbHelper = DatabaseHelper();
-  final db = await dbHelper.database;
+  // Initialize database with error handling
+  try {
+    final dbHelper = DatabaseHelper();
+    final db = await dbHelper.database;
 
-  // TEMPORARY: Check routines in database
-  final routines = await db.query('routines');
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  print('📊 DATABASE ROUTINES COUNT: ${routines.length}');
-  for (var r in routines) {
-    print('  📌 ID: ${r['id']} | Type: ${r['type']} | Course: ${r['courseCode']} | Day: ${r['day']} | Slot: ${r['slot']}');
+    // Debug-only logging (won't run in release builds)
+    if (kDebugMode) {
+      final routines = await db.query('routines');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('📊 DATABASE ROUTINES COUNT: ${routines.length}');
+      for (var r in routines) {
+        debugPrint(
+          ' 📌 ID: ${r['id']} | Type: ${r['type']} | '
+          'Course: ${r['courseCode']} | Day: ${r['day']} | Slot: ${r['slot']}',
+        );
+      }
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+  } catch (e, stack) {
+    debugPrint('❌ Database initialization error: $e');
+    debugPrint('$stack');
   }
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   runApp(const MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -44,21 +57,21 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
-        ChangeNotifierProvider<DashboardProvider>(create: (_) => DashboardProvider()),
-        ChangeNotifierProvider<DepartmentProvider>(create: (_) => DepartmentProvider()),
-        ChangeNotifierProvider<TeacherProvider>(create: (_) => TeacherProvider()),
-        ChangeNotifierProvider<BatchProvider>(create: (_) => BatchProvider()),
-        ChangeNotifierProvider<RoutineProvider>(create: (_) => RoutineProvider()),
-        ChangeNotifierProvider<CourseProvider>(create: (_) => CourseProvider()),
-        ChangeNotifierProvider<RoomProvider>(create: (_) => RoomProvider()),
-        ChangeNotifierProvider<MergeProvider>(create: (_) => MergeProvider()),
-        ChangeNotifierProvider<SettingsProvider>(create: (_) => SettingsProvider()),
-        ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider<ProfileProvider>(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => DashboardProvider()),
+        ChangeNotifierProvider(create: (_) => DepartmentProvider()),
+        ChangeNotifierProvider(create: (_) => TeacherProvider()),
+        ChangeNotifierProvider(create: (_) => BatchProvider()),
+        ChangeNotifierProvider(create: (_) => RoutineProvider()),
+        ChangeNotifierProvider(create: (_) => CourseProvider()),
+        ChangeNotifierProvider(create: (_) => RoomProvider()),
+        ChangeNotifierProvider(create: (_) => MergeProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileProvider()),
       ],
       child: MaterialApp(
-        title: 'SAS',
+        title: 'Smart Academic Scheduler',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -66,6 +79,11 @@ class MyApp extends StatelessWidget {
             seedColor: const Color(0xFF1976D2),
           ),
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF1976D2),
+            foregroundColor: Colors.white,
+            elevation: 2,
+          ),
         ),
         initialRoute: '/',
         routes: {
@@ -77,4 +95,4 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
-}
+} // ⬅️ THIS WAS MISSING — closes MyApp class

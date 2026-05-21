@@ -8,7 +8,7 @@ class Batch {
   List<Map<String, dynamic>> courses; // Temporary courses for batch creation
 
   // For multiple selection in merge section (not stored in DB)
-  bool isSelected = false;
+  bool isSelected;
 
   Batch({
     this.id,
@@ -50,4 +50,20 @@ class Batch {
   // Batch range
   static const int minBatch = 1;
   static const int maxBatch = 100;
+
+  @override
+  String toString() {
+    return 'Batch{id: $id, batchNo: $batchNo, programType: $programType}';
+  }
+
+  // 🔥 Equality based on id — fixes DropdownButton matching
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Batch &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

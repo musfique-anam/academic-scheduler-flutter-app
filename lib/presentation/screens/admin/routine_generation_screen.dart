@@ -20,7 +20,8 @@ class RoutineGenerationScreen extends StatefulWidget {
   const RoutineGenerationScreen({super.key});
 
   @override
-  State<RoutineGenerationScreen> createState() => _RoutineGenerationScreenState();
+  State<RoutineGenerationScreen> createState() =>
+      _RoutineGenerationScreenState();
 }
 
 class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
@@ -48,9 +49,12 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
   final List<String> _generateTypes = ['Central', 'Batch-wise'];
   final List<String> _routineTypes = ['Class', 'Exam'];
   final List<String> _generationModes = ['Auto', 'Manual'];
-
   final List<String> _days = [
-    'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'
+    'Friday',
+    'Saturday',
+    'Sunday',
+    'Monday',
+    'Tuesday'
   ];
 
   final List<Map<String, dynamic>> _timeSlots = const [
@@ -63,9 +67,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   Future<void> _loadData() async {
@@ -119,7 +121,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
       return;
     }
 
-    final routineProvider = Provider.of<RoutineProvider>(context, listen: false);
+    final routineProvider =
+        Provider.of<RoutineProvider>(context, listen: false);
 
     if (mounted) {
       showDialog(
@@ -141,9 +144,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
       },
     );
 
-    if (mounted) {
-      Navigator.pop(context);
-    }
+    if (mounted) Navigator.pop(context);
 
     if (mounted) {
       if (routineProvider.error != null) {
@@ -155,6 +156,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
       }
     }
   }
+
   Future<void> _generateExamRoutine() async {
     if (_selectedDepartments.isEmpty) {
       _showError('Please select at least one department');
@@ -179,7 +181,6 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
       return;
     }
 
-    // Validate all entries
     for (var entry in _manualEntries) {
       if (entry['batchId'] == null) {
         _showError('Please select batch for all entries');
@@ -199,7 +200,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
     return Consumer<RoutineProvider>(
       builder: (context, provider, child) {
         return AlertDialog(
-          title: const Text('Generating Routine'),
+          title: const Text('Generating Routine...'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -214,15 +215,14 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       value: provider.progress,
                       strokeWidth: 8,
                       backgroundColor: Colors.grey[200],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF1976D2)),
                     ),
                   ),
                   Text(
                     '${(provider.progress * 100).toInt()}%',
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -249,23 +249,17 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (provider.hasConflicts) ...[
-              const Text(
-                '• Conflicts found in schedule',
-                style: TextStyle(color: Colors.red),
-              ),
+              const Text('• Conflicts found in schedule',
+                  style: TextStyle(color: Colors.red)),
               const SizedBox(height: 4),
             ],
             if (provider.hasOverload) ...[
-              const Text(
-                '• Teacher workload exceeded',
-                style: TextStyle(color: Colors.orange),
-              ),
+              const Text('• Teacher workload exceeded',
+                  style: TextStyle(color: Colors.orange)),
             ],
             const SizedBox(height: 16),
-            const Text(
-              'Would you like to fix these issues manually?',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Would you like to fix these issues manually?',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
@@ -294,20 +288,107 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
     );
   }
 
+  // 🔥 ROUTINE-TYPE-AWARE SUCCESS DIALOG
   void _showSuccessDialog(RoutineProvider? provider) {
+    final isExam = _routineType == 'Exam';
+
+    // Filter routines by current type if available
+    final routines = provider?.routines.where((r) {
+          try {
+            return (r.type).toLowerCase() == _routineType.toLowerCase();
+          } catch (_) {
+            return true;
+          }
+        }).toList() ??
+        [];
+
+    // Exam-specific computed stats
+    final examDates = <String>{};
+    final examBatches = <dynamic>{};
+    final examRooms = <String>{};
+    for (var r in routines) {
+      try {
+        if (r.date != null) {
+          examDates.add('${r.date!.year}-${r.date!.month}-${r.date!.day}');
+        }
+      } catch (_) {}
+      try {
+        examBatches.add(r.batchId);
+      } catch (_) {}
+      try {
+        if (r.roomNo != null && r.roomNo!.isNotEmpty) {
+          examRooms.add(r.roomNo!);
+        }
+      } catch (_) {}
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('✅ Routine Generated'),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isExam ? Icons.quiz : Icons.check_circle,
+              color: Colors.green,
+              size: 28,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isExam ? 'Exam Routine Generated' : 'Class Routine Generated',
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (provider != null) ...[
-              Text('Total Classes: ${provider.routines.length}'),
-              Text('Conflicts: ${provider.conflicts.length}'),
-              Text('Teachers Assigned: ${provider.workloads.length}'),
+              if (isExam) ...[
+                _statRow(Icons.event_note, 'Total Exams',
+                    '${routines.length}', Colors.blue),
+                const SizedBox(height: 8),
+                _statRow(Icons.calendar_today, 'Exam Days',
+                    '${examDates.length}', Colors.purple),
+                const SizedBox(height: 8),
+                _statRow(Icons.group, 'Batches Covered',
+                    '${examBatches.length}', Colors.orange),
+                const SizedBox(height: 8),
+                _statRow(Icons.meeting_room, 'Rooms Used',
+                    '${examRooms.length}', Colors.teal),
+                if (_startDate != null && _endDate != null) ...[
+                  const SizedBox(height: 8),
+                  _statRow(
+                    Icons.date_range,
+                    'Date Range',
+                    '${_startDate!.day}/${_startDate!.month} - ${_endDate!.day}/${_endDate!.month}',
+                    Colors.indigo,
+                  ),
+                ],
+              ] else ...[
+                _statRow(Icons.class_, 'Total Classes',
+                    '${provider.routines.length}', Colors.blue),
+                const SizedBox(height: 8),
+                _statRow(
+                  Icons.warning_amber,
+                  'Conflicts',
+                  '${provider.conflicts.length}',
+                  provider.conflicts.isEmpty ? Colors.green : Colors.red,
+                ),
+                const SizedBox(height: 8),
+                _statRow(Icons.person, 'Teachers Assigned',
+                    '${provider.workloads.length}', Colors.orange),
+              ],
             ] else ...[
-              const Text('Manual routine created successfully'),
+              Text(
+                isExam
+                    ? 'Exam routine created successfully'
+                    : 'Manual routine created successfully',
+              ),
             ],
           ],
         ),
@@ -316,7 +397,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
               Navigator.push(
@@ -326,10 +407,43 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                 ),
               );
             },
-            child: const Text('View Routine'),
+            icon: const Icon(Icons.visibility),
+            label: const Text('View Routine'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1976D2),
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  // 🔥 Helper widget for stat rows
+  Widget _statRow(IconData icon, String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(label, style: const TextStyle(fontSize: 14)),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
@@ -375,21 +489,17 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Routine Type',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1976D2),
-                      ),
-                    ),
+                    const Text('Routine Type',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1976D2))),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -398,7 +508,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             label: 'Class Routine',
                             icon: Icons.class_,
                             isSelected: _routineType == 'Class',
-                            onTap: () => setState(() => _routineType = 'Class'),
+                            onTap: () =>
+                                setState(() => _routineType = 'Class'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -407,7 +518,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             label: 'Exam Routine',
                             icon: Icons.quiz,
                             isSelected: _routineType == 'Exam',
-                            onTap: () => setState(() => _routineType = 'Exam'),
+                            onTap: () =>
+                                setState(() => _routineType = 'Exam'),
                           ),
                         ),
                       ],
@@ -416,28 +528,23 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
 
             // Generation Mode Selection
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Generation Mode',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1976D2),
-                      ),
-                    ),
+                    const Text('Generation Mode',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1976D2))),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -446,7 +553,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             label: 'Auto Generate',
                             icon: Icons.auto_awesome,
                             isSelected: _generationMode == 'Auto',
-                            onTap: () => setState(() => _generationMode = 'Auto'),
+                            onTap: () =>
+                                setState(() => _generationMode = 'Auto'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -455,7 +563,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             label: 'Manual Entry',
                             icon: Icons.edit,
                             isSelected: _generationMode == 'Manual',
-                            onTap: () => setState(() => _generationMode = 'Manual'),
+                            onTap: () =>
+                                setState(() => _generationMode = 'Manual'),
                           ),
                         ),
                       ],
@@ -464,7 +573,6 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
 
             // Auto Generation UI
@@ -478,13 +586,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
 
             // Manual Generation UI
             if (_generationMode == 'Manual') ...[
-              _buildManualRoutineUI(
-                deptProvider,
-                batchProvider,
-                teacherProvider,
-                roomProvider,
-                courseProvider,
-              ),
+              _buildManualRoutineUI(deptProvider, batchProvider,
+                  teacherProvider, roomProvider, courseProvider),
             ],
 
             const SizedBox(height: 24),
@@ -495,33 +598,30 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
               height: 56,
               child: ElevatedButton.icon(
                 onPressed: _generateRoutine,
-                icon: Icon(_generationMode == 'Auto' ? Icons.auto_awesome : Icons.edit),
+                icon: Icon(_generationMode == 'Auto'
+                    ? Icons.auto_awesome
+                    : Icons.edit),
                 label: Text(
-                  '${_generationMode} Generate ${_routineType} Routine',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  '$_generationMode Generate $_routineType Routine',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1976D2),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
 
             // Quick Actions
             if (routineProvider.routines.isNotEmpty) ...[
               const Divider(height: 32),
-              const Text(
-                'Quick Actions',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('Quick Actions',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -530,13 +630,16 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       icon: Icons.warning_amber,
                       label: 'Conflicts',
                       value: '${routineProvider.conflicts.length}',
-                      color: routineProvider.hasConflicts ? Colors.red : Colors.green,
+                      color: routineProvider.hasConflicts
+                          ? Colors.red
+                          : Colors.green,
                       onTap: () {
                         if (routineProvider.hasConflicts) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const ConflictResolutionScreen(),
+                              builder: (context) =>
+                                  const ConflictResolutionScreen(),
                             ),
                           );
                         }
@@ -548,13 +651,17 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                     child: _buildActionCard(
                       icon: Icons.speed,
                       label: 'Workload',
-                      value: '${routineProvider.workloads.length} teachers',
-                      color: routineProvider.hasOverload ? Colors.orange : Colors.green,
+                      value:
+                          '${routineProvider.workloads.length} teachers',
+                      color: routineProvider.hasOverload
+                          ? Colors.orange
+                          : Colors.green,
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const WorkloadSummaryScreen(),
+                            builder: (context) =>
+                                const WorkloadSummaryScreen(),
                           ),
                         );
                       },
@@ -565,13 +672,15 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                     child: _buildActionCard(
                       icon: Icons.calendar_view_day,
                       label: 'View',
-                      value: '${routineProvider.routines.length} classes',
+                      value:
+                          '${routineProvider.routines.length} classes',
                       color: Colors.blue,
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ViewRoutineScreen(),
+                            builder: (context) =>
+                                const ViewRoutineScreen(),
                           ),
                         );
                       },
@@ -586,40 +695,29 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
     );
   }
 
-  // শুধু এই মেথডটি replace করুন:
-
-  // lib/presentation/screens/admin/routine_generation_screen.dart
-
-// শুধু _buildClassRoutineAutoUI মেথডটি replace করুন:
-
-  // শুধু এই মেথডটি replace করুন:
-
   Widget _buildClassRoutineAutoUI(DepartmentProvider deptProvider) {
     return Column(
       children: [
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Select Department',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Select Department',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Consumer<DepartmentProvider>(
                   builder: (context, provider, child) {
                     final bool isValidDept = _selectedDepartment != null &&
-                        provider.departments.any((d) => d.id == _selectedDepartment!.id);
+                        provider.departments
+                            .any((d) => d.id == _selectedDepartment!.id);
 
                     if (!isValidDept && _selectedDepartment != null) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -631,7 +729,6 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       });
                     }
 
-                    // FIX: Don't use Expanded here directly in Column
                     return SizedBox(
                       width: double.infinity,
                       child: DropdownButtonFormField<Department>(
@@ -639,19 +736,17 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                         value: isValidDept ? _selectedDepartment : null,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                              borderRadius: BorderRadius.circular(12)),
                           prefixIcon: const Icon(Icons.business),
                         ),
                         hint: const Text('Choose Department'),
-                        items: provider.departments.map<DropdownMenuItem<Department>>(
-                              (Department dept) {
-                            return DropdownMenuItem<Department>(
-                              value: dept,
-                              child: Text('${dept.name} (${dept.code})'),
-                            );
-                          },
-                        ).toList(),
+                        items: provider.departments
+                            .map<DropdownMenuItem<Department>>((dept) {
+                          return DropdownMenuItem<Department>(
+                            value: dept,
+                            child: Text('${dept.name} (${dept.code})'),
+                          );
+                        }).toList(),
                         onChanged: (Department? dept) {
                           setState(() {
                             _selectedDepartment = dept;
@@ -667,27 +762,21 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Program Type',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Program Type',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -695,7 +784,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       child: _buildProgramChip(
                         label: 'HSC',
                         isSelected: _selectedProgram == 'HSC',
-                        onTap: () => setState(() => _selectedProgram = 'HSC'),
+                        onTap: () =>
+                            setState(() => _selectedProgram = 'HSC'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -703,7 +793,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       child: _buildProgramChip(
                         label: 'Diploma',
                         isSelected: _selectedProgram == 'Diploma',
-                        onTap: () => setState(() => _selectedProgram = 'Diploma'),
+                        onTap: () =>
+                            setState(() => _selectedProgram = 'Diploma'),
                       ),
                     ),
                   ],
@@ -712,27 +803,21 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Generate Type',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Generate Type',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -740,7 +825,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       child: _buildGenerateChip(
                         label: 'Central',
                         isSelected: _selectedGenerateType == 'Central',
-                        onTap: () => setState(() => _selectedGenerateType = 'Central'),
+                        onTap: () => setState(
+                            () => _selectedGenerateType = 'Central'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -748,7 +834,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       child: _buildGenerateChip(
                         label: 'Batch-wise',
                         isSelected: _selectedGenerateType == 'Batch-wise',
-                        onTap: () => setState(() => _selectedGenerateType = 'Batch-wise'),
+                        onTap: () => setState(
+                            () => _selectedGenerateType = 'Batch-wise'),
                       ),
                     ),
                   ],
@@ -761,28 +848,24 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
     );
   }
 
-  Widget _buildExamRoutineAutoUI(DepartmentProvider deptProvider, BatchProvider batchProvider) {
+  Widget _buildExamRoutineAutoUI(
+      DepartmentProvider deptProvider, BatchProvider batchProvider) {
     return Column(
       children: [
-        // Departments Selection
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Select Departments',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Select Departments',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -792,7 +875,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                   ),
                   child: Column(
                     children: deptProvider.departments.map((dept) {
-                      final isSelected = _selectedDepartments.contains(dept);
+                      final isSelected =
+                          _selectedDepartments.contains(dept);
                       return CheckboxListTile(
                         title: Text('${dept.name} (${dept.code})'),
                         value: isSelected,
@@ -813,28 +897,21 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
-        // Batches Selection
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Select Batches',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Select Batches',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -846,8 +923,10 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                     children: batchProvider.batches.map((batch) {
                       final isSelected = _selectedBatches.contains(batch);
                       return CheckboxListTile(
-                        title: Text('Batch ${batch.batchNo} (${batch.programType})'),
-                        subtitle: Text('Dept: ${batch.departmentName ?? 'Unknown'}'),
+                        title: Text(
+                            'Batch ${batch.batchNo} (${batch.programType})'),
+                        subtitle: Text(
+                            'Dept: ${batch.departmentName ?? "Unknown"}'),
                         value: isSelected,
                         onChanged: (selected) {
                           setState(() {
@@ -866,28 +945,21 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
-        // Date Range
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Exam Date Range',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2),
-                  ),
-                ),
+                const Text('Exam Date Range',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1976D2))),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -898,29 +970,27 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             context: context,
                             initialDate: _startDate ?? DateTime.now(),
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365)),
                           );
                           if (picked != null) {
-                            setState(() {
-                              _startDate = picked;
-                            });
+                            setState(() => _startDate = picked);
                           }
                         },
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
+                            border:
+                                Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
                             children: [
                               const Icon(Icons.calendar_today, size: 16),
                               const SizedBox(height: 4),
-                              Text(
-                                _startDate == null
-                                    ? 'Start Date'
-                                    : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}',
-                              ),
+                              Text(_startDate == null
+                                  ? 'Start Date'
+                                  : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'),
                             ],
                           ),
                         ),
@@ -934,29 +1004,27 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                             context: context,
                             initialDate: _endDate ?? DateTime.now(),
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365)),
                           );
                           if (picked != null) {
-                            setState(() {
-                              _endDate = picked;
-                            });
+                            setState(() => _endDate = picked);
                           }
                         },
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
+                            border:
+                                Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
                             children: [
                               const Icon(Icons.calendar_today, size: 16),
                               const SizedBox(height: 4),
-                              Text(
-                                _endDate == null
-                                    ? 'End Date'
-                                    : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}',
-                              ),
+                              Text(_endDate == null
+                                  ? 'End Date'
+                                  : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'),
                             ],
                           ),
                         ),
@@ -973,15 +1041,14 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
   }
 
   Widget _buildManualRoutineUI(
-      DepartmentProvider deptProvider,
-      BatchProvider batchProvider,
-      TeacherProvider teacherProvider,
-      RoomProvider roomProvider,
-      CourseProvider courseProvider,
-      ) {
+    DepartmentProvider deptProvider,
+    BatchProvider batchProvider,
+    TeacherProvider teacherProvider,
+    RoomProvider roomProvider,
+    CourseProvider courseProvider,
+  ) {
     return Column(
       children: [
-        // Add Entry Button
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: ElevatedButton.icon(
@@ -994,8 +1061,6 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             ),
           ),
         ),
-
-        // Manual Entries List
         ..._manualEntries.asMap().entries.map((entry) {
           int index = entry.key;
           Map<String, dynamic> data = entry.value;
@@ -1006,43 +1071,38 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Entry ${index + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      Text('Entry ${index + 1}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
+                        icon: const Icon(Icons.delete),
+                        color: Colors.red,
                         onPressed: () => _removeManualEntry(index),
                       ),
                     ],
                   ),
-
                   const Divider(),
-
-                  // Batch Selection - FIXED
                   DropdownButtonFormField<Batch>(
                     value: data['batchId'] != null
                         ? batchProvider.batches.firstWhere(
-                          (b) => b.id == data['batchId'],
-                      orElse: () => null as Batch,
-                    )
+                            (b) => b.id == data['batchId'],
+                            orElse: () => null as Batch)
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Select Batch',
                       border: OutlineInputBorder(),
                     ),
                     hint: const Text('Choose Batch'),
-                    items: batchProvider.batches.map<DropdownMenuItem<Batch>>((Batch batch) {
+                    items: batchProvider.batches
+                        .map<DropdownMenuItem<Batch>>((Batch batch) {
                       return DropdownMenuItem<Batch>(
                         value: batch,
-                        child: Text('Batch ${batch.batchNo} (${batch.programType})'),
+                        child: Text(
+                            'Batch ${batch.batchNo} (${batch.programType})'),
                       );
                     }).toList(),
                     onChanged: (Batch? batch) {
@@ -1051,17 +1111,13 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Course Selection (filtered by batch)
-                  if (data['batchId'] != null)
+                  if (data['batchId'] != null) ...[
                     DropdownButtonFormField<Course>(
                       value: data['courseId'] != null
                           ? courseProvider.courses.firstWhere(
-                            (c) => c.id == data['courseId'],
-                        orElse: () => null as Course,
-                      )
+                              (c) => c.id == data['courseId'],
+                              orElse: () => null as Course)
                           : null,
                       decoration: const InputDecoration(
                         labelText: 'Select Course',
@@ -1082,17 +1138,16 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                         });
                       },
                     ),
-
-                  const SizedBox(height: 12),
-
-                  // Day Selection - FIXED
+                    const SizedBox(height: 12),
+                  ],
                   DropdownButtonFormField<String>(
                     value: data['day'],
                     decoration: const InputDecoration(
                       labelText: 'Day',
                       border: OutlineInputBorder(),
                     ),
-                    items: _days.map<DropdownMenuItem<String>>((String day) {
+                    items: _days
+                        .map<DropdownMenuItem<String>>((String day) {
                       return DropdownMenuItem<String>(
                         value: day,
                         child: Text(day),
@@ -1104,20 +1159,20 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Slot Selection - FIXED
                   DropdownButtonFormField<int>(
                     value: data['slot'],
                     decoration: const InputDecoration(
                       labelText: 'Time Slot',
                       border: OutlineInputBorder(),
                     ),
-                    items: _timeSlots.map<DropdownMenuItem<int>>((Map<String, dynamic> slot) {
+                    items: _timeSlots
+                        .map<DropdownMenuItem<int>>(
+                            (Map<String, dynamic> slot) {
                       return DropdownMenuItem<int>(
                         value: slot['slot'] as int,
-                        child: Text('Slot ${slot['slot']}: ${slot['time']}'),
+                        child:
+                            Text('Slot ${slot['slot']} (${slot['time']})'),
                       );
                     }).toList(),
                     onChanged: (int? value) {
@@ -1126,16 +1181,12 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Teacher Selection - FIXED
                   DropdownButtonFormField<Teacher>(
                     value: data['teacherId'] != null
                         ? teacherProvider.teachers.firstWhere(
-                          (t) => t.id == data['teacherId'],
-                      orElse: () => null as Teacher,
-                    )
+                            (t) => t.id == data['teacherId'],
+                            orElse: () => null as Teacher)
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Teacher (Optional)',
@@ -1147,7 +1198,9 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                         value: null,
                         child: Text('None'),
                       ),
-                      ...teacherProvider.teachers.map<DropdownMenuItem<Teacher>>((Teacher teacher) {
+                      ...teacherProvider.teachers
+                          .map<DropdownMenuItem<Teacher>>(
+                              (Teacher teacher) {
                         return DropdownMenuItem<Teacher>(
                           value: teacher,
                           child: Text(teacher.name),
@@ -1160,16 +1213,12 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Room Selection - FIXED
                   DropdownButtonFormField<Room>(
                     value: data['roomId'] != null
                         ? roomProvider.rooms.firstWhere(
-                          (r) => r.id == data['roomId'],
-                      orElse: () => null as Room,
-                    )
+                            (r) => r.id == data['roomId'],
+                            orElse: () => null as Room)
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Room (Optional)',
@@ -1181,10 +1230,12 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
                         value: null,
                         child: Text('None'),
                       ),
-                      ...roomProvider.rooms.map<DropdownMenuItem<Room>>((Room room) {
+                      ...roomProvider.rooms
+                          .map<DropdownMenuItem<Room>>((Room room) {
                         return DropdownMenuItem<Room>(
                           value: room,
-                          child: Text('${room.roomNo} (F${room.floor})'),
+                          child:
+                              Text('${room.roomNo} (F${room.floor})'),
                         );
                       }),
                     ],
@@ -1216,8 +1267,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-            colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-          )
+                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)])
               : null,
           color: isSelected ? null : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
@@ -1227,13 +1277,15 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? Colors.white : Colors.grey[700]),
+            Icon(icon,
+                color: isSelected ? Colors.white : Colors.grey[700]),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight:
+                    isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 12,
               ),
               textAlign: TextAlign.center,
@@ -1256,8 +1308,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-            colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-          )
+                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)])
               : null,
           color: isSelected ? null : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
@@ -1270,7 +1321,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             label,
             style: TextStyle(
               color: isSelected ? Colors.white : Colors.black87,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontWeight:
+                  isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),
@@ -1290,8 +1342,7 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-            colors: [Colors.green, Colors.lightGreen],
-          )
+                  colors: [Colors.green, Colors.lightGreen])
               : null,
           color: isSelected ? null : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
@@ -1304,7 +1355,8 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
             label,
             style: TextStyle(
               color: isSelected ? Colors.white : Colors.black87,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontWeight:
+                  isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),
@@ -1332,21 +1384,14 @@ class _RoutineGenerationScreenState extends State<RoutineGenerationScreen> {
           children: [
             Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
-            ),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: color,
+                    fontWeight: FontWeight.bold)),
+            Text(value,
+                style:
+                    TextStyle(fontSize: 11, color: Colors.grey[600])),
           ],
         ),
       ),
