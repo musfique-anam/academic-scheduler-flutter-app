@@ -17,6 +17,7 @@
 [![Status](https://img.shields.io/badge/Status-Active-success.svg?style=flat-square)](#)
 [![Platform](https://img.shields.io/badge/Platform-Android-blueviolet.svg?style=flat-square)](#)
 
+[![Documentation](https://img.shields.io/badge/Docs-Read-blue?style=for-the-badge)](DOCUMENTATION.md)
 ---
 
 </div>
